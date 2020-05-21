@@ -1,0 +1,6 @@
+
+struct Decoder {
+}
+
+impl Decoder {
+}

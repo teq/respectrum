@@ -1,20 +1,17 @@
-mod memory;
+mod types;
+mod bus;
 mod cpu;
-mod display;
 
-use memory::Memory;
+use bus::Memory;
 use cpu::Cpu;
-use display::Display;
-use std::mem;
 
 fn main() {
 
     let mem = Memory::init();
     let cpu = Cpu::init();
-    let display = Display::init();
 
-    let al = mem::align_of_val(&cpu);
-    let sz = mem::size_of_val(&cpu);
+    let al = std::mem::align_of_val(&cpu);
+    let sz = std::mem::size_of_val(&cpu);
     println!("Value: {:#?}, align: {}, size: {}", cpu, al, sz);
 
 }

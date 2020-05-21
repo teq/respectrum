@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, ops};
 
 const PAGE_SIZE: u16 = 0x4000;
 
@@ -10,6 +10,15 @@ pub struct Memory {
     /// Maps memory windows to particular memory pages
     windows: [usize; 4]
 
+}
+
+impl ops::Index<u16> for Memory {
+    type Output = u8;
+    fn index(&self, addr: u16) -> &Self::Output {
+        let window_page = self.windows[(addr / PAGE_SIZE) as usize];
+        let page = &self.pages[window_page];
+        &page[(addr % PAGE_SIZE) as usize]
+    }
 }
 
 impl Memory {
@@ -31,18 +40,15 @@ impl Memory {
 
     }
 
-    /// Read byte from memory
-    pub fn read_byte(&self, addr: u16) -> u8 {
-        let window_page = self.windows[(addr / PAGE_SIZE) as usize];
-        let page = &self.pages[window_page];
-        page[(addr % PAGE_SIZE) as usize]
-    }
+}
 
-    /// Write byte to memory
-    pub fn write_byte(&mut self, addr: u16, value: u8) {
-        let window_page = self.windows[(addr / PAGE_SIZE) as usize];
-        let page = &mut self.pages[window_page];
-        page[(addr % PAGE_SIZE) as usize] = value;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn asd() {
+
     }
 
 }

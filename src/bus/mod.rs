@@ -1,2 +1,2 @@
-mod zx48_memory;
-pub use zx48_memory::Memory;
+mod memory;
+pub use memory::*;

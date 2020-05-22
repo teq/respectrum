@@ -1,5 +1,8 @@
 mod cpu;
-pub use cpu::Cpu;
+pub use cpu::*;
+
+mod decoder;
+pub use decoder::*;
 
 mod tokens;
 pub use tokens::*;

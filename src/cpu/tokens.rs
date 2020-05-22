@@ -12,7 +12,9 @@ enum Token {
 
 /// Opcode prefix
 enum PrefixCode {
-    CB, ED, DD, DDCB, FD, FDCB,
+    CB = 0xcb, ED   = 0xed,
+    DD = 0xdd, DDCB = 0xddcb,
+    FD = 0xfd, FDCB = 0xfdcb,
 }
 
 /// 8-bit register

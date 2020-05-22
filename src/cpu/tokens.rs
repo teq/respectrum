@@ -1,5 +1,6 @@
-/// Decoded CPU token
-enum Token {
+/// Decoded CPU token (prefix, opcode, displacement byte or immediate data)
+#[derive(Debug)]
+pub enum Token {
     Prefix { code: PrefixCode },
     /// No operation
     Nop,
@@ -11,14 +12,15 @@ enum Token {
 }
 
 /// Opcode prefix
-enum PrefixCode {
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum PrefixCode {
     CB = 0xcb, ED   = 0xed,
     DD = 0xdd, DDCB = 0xddcb,
     FD = 0xfd, FDCB = 0xfdcb,
 }
 
 /// 8-bit register
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Reg {
     B = 0, // \
     C,     // |
@@ -38,7 +40,7 @@ impl From<u8> for Reg {
 }
 
 /// 16-bit register pair
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum RegPair {
     BC = 0, // \
     DE,     // | DO NOT move or reorder these register pairs
@@ -54,7 +56,7 @@ impl From<u8> for RegPair {
 }
 
 /// Condition
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Condition { // DO NOT reorder
     NZ = 0, Z, NC, C, PO, PE, P, M,
 }
@@ -66,7 +68,7 @@ impl From<u8> for Condition {
 }
 
 /// ALU operation
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum AluOp { // DO NOT reorder
     ADD = 0, ADC, SUB, SBC, AND, XOR, OR, CP,
 }
@@ -78,7 +80,7 @@ impl From<u8> for AluOp {
 }
 
 /// Shift operation
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum ShiftOp { // DO NOT reorder
     RLC = 0, RRC, RL, RR, SLA, SRA, SLL, SRL
 }
@@ -90,7 +92,7 @@ impl From<u8> for ShiftOp {
 }
 
 /// Interrupt mode
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum IntMode { // DO NOT reorder
     IM0 = 0, IM01, IM1, IM2,
 }
@@ -102,7 +104,7 @@ impl From<u8> for IntMode {
 }
 
 /// Block operation
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum BlockOp { // DO NOT reorder
     LDI = 0, CPI,  INI,  OUTI,
     LDD,     CPD,  IND,  OUTD,

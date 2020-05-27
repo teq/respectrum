@@ -1,17 +1,26 @@
+#![feature(generators, generator_trait)]
 mod types;
-mod bus;
 mod cpu;
 
-use bus::Memory;
-use cpu::Cpu;
+use std::ops::{Generator, GeneratorState};
+use std::pin::Pin;
+use std::io;
+use std::io::Read;
 
 fn main() {
 
-    let mem = Memory::init();
-    let cpu = Cpu::init();
+    let mut decoder = cpu::decoder::opcode_decoder();
 
-    let al = std::mem::align_of_val(&cpu);
-    let sz = std::mem::size_of_val(&cpu);
-    println!("Value: {:#?}, align: {}, size: {}", cpu, al, sz);
+    for it in io::stdin().bytes() {
+        let byte = it.unwrap();
+        println!("Byte: {:#x}", byte);
+        match Pin::new(&mut decoder).resume(byte) {
+            GeneratorState::Yielded(token) => println!("-- {:?}", token),
+            GeneratorState::Complete(token) => {
+                println!("==> {:?}\n", token);
+                decoder = cpu::decoder::opcode_decoder();
+            }
+        }
+    }
 
 }

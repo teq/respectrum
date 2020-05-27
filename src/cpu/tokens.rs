@@ -1,35 +1,93 @@
-/// Decoded CPU token (prefix, opcode, displacement byte or immediate data)
+/// Decoded CPU token
 #[derive(Debug)]
 pub enum Token {
-    Prefix { code: PrefixCode },
-    /// No operation
-    Nop,
-    /// Exchange AF / AF`
-    ExAF,
-    ExX,
-    ExDEHL,
-    ExAtSP { source: u8 }
-}
 
-/// Opcode prefix
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum PrefixCode {
-    CB = 0xcb, ED   = 0xed,
-    DD = 0xdd, DDCB = 0xddcb,
-    FD = 0xfd, FDCB = 0xfdcb,
+    Prefix(u16),
+    Offset(i8),
+    Operand(u8),
+
+    // no prefix
+
+    NOP,
+    EX_AF,
+    DJNZ,
+    JR(Condition),
+    LD_RP_NN(RegPair),
+    ADD_HL_RP(RegPair),
+    LD_RP_A(RegPair),
+    LD_A_RP(RegPair),
+    LD_MM_HL,
+    LD_HL_MM,
+    LD_MM_A,
+    LD_A_MM,
+    INC_RP(RegPair),
+    DEC_RP(RegPair),
+    INC_RG(Reg),
+    DEC_RG(Reg),
+    LD_RG_N(Reg),
+    RLCA,
+    RRCA,
+    RLA,
+    RRA,
+    DAA,
+    CPL,
+    SCF,
+    CCF,
+    RET(Condition),
+    POP(RegPair),
+    EXX,
+    JP_HL,
+    LD_SP_HL,
+    JP(Condition),
+    OUT_N_A,
+    IN_A_N,
+    EX_AtSP_HL,
+    EX_DE_HL,
+    DI,
+    EI,
+    CALL(Condition),
+    PUSH(RegPair),
+    ALU_N(AluOp),
+    RST(u8),
+    HALT,
+    LD_RG_RG(Reg, Reg),
+    ALU_RG(AluOp, Reg),
+
+    // ED prefix
+
+    IN_RG_AtBC(Reg),
+    IN_AtBC,
+    OUT_AtBC_RG(Reg),
+    OUT_AtBC_0,
+    SBC_HL_RP(RegPair),
+    ADC_HL_RP(RegPair),
+    LD_AtMM_RP(RegPair),
+    LD_RP_AtMM(RegPair),
+    NEG,
+    RETN,
+    RETI,
+    IM(IntMode),
+    LD_I_A,
+    LD_R_A,
+    LD_A_I,
+    LD_A_R,
+    RRD,
+    RLD,
+    BLI(BlockOp),
+
+    // CB prefix
+
+    SH(ShiftOp, Reg),
+    BIT(u8, Reg),
+    RES(u8, Reg),
+    SET(u8, Reg),
+
 }
 
 /// 8-bit register
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum Reg {
-    B = 0, // \
-    C,     // |
-    D,     // | DO NOT move or reorder these registers
-    E,     // | since they're directly mapped
-    H,     // | to corresponding opcode values
-    L,     // |
-    AtHL,  // |
-    A,     // /
+pub enum Reg {
+    B = 0, C, D, E, H, L, AtHL, A, // DO NOT reorder
     R, I, IXH, IXL, IYH, IYL,
 }
 
@@ -41,11 +99,8 @@ impl From<u8> for Reg {
 
 /// 16-bit register pair
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum RegPair {
-    BC = 0, // \
-    DE,     // | DO NOT move or reorder these register pairs
-    HL,     // | since they're directly mapped to corresponding opcode values
-    SPorAF, // /
+pub enum RegPair {
+    BC = 0, DE, HL, SPorAF, // DO NOT reorder
     SP, AF, IX, IY,
 }
 
@@ -57,8 +112,9 @@ impl From<u8> for RegPair {
 
 /// Condition
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum Condition { // DO NOT reorder
-    NZ = 0, Z, NC, C, PO, PE, P, M,
+pub enum Condition {
+    NZ = 0, Z, NC, C, PO, PE, P, M, // DO NOT reorder
+    None
 }
 
 impl From<u8> for Condition {
@@ -69,8 +125,8 @@ impl From<u8> for Condition {
 
 /// ALU operation
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum AluOp { // DO NOT reorder
-    ADD = 0, ADC, SUB, SBC, AND, XOR, OR, CP,
+pub enum AluOp {
+    ADD = 0, ADC, SUB, SBC, AND, XOR, OR, CP, // DO NOT reorder
 }
 
 impl From<u8> for AluOp {
@@ -81,8 +137,8 @@ impl From<u8> for AluOp {
 
 /// Shift operation
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum ShiftOp { // DO NOT reorder
-    RLC = 0, RRC, RL, RR, SLA, SRA, SLL, SRL
+pub enum ShiftOp {
+    RLC = 0, RRC, RL, RR, SLA, SRA, SLL, SRL, // DO NOT reorder
 }
 
 impl From<u8> for ShiftOp {
@@ -93,8 +149,8 @@ impl From<u8> for ShiftOp {
 
 /// Interrupt mode
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum IntMode { // DO NOT reorder
-    IM0 = 0, IM01, IM1, IM2,
+pub enum IntMode {
+    IM0 = 0, IM01, IM1, IM2, // DO NOT reorder
 }
 
 impl From<u8> for IntMode {
@@ -105,7 +161,7 @@ impl From<u8> for IntMode {
 
 /// Block operation
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum BlockOp { // DO NOT reorder
+pub enum BlockOp { // DO NOT reorder
     LDI = 0, CPI,  INI,  OUTI,
     LDD,     CPD,  IND,  OUTD,
     LDIR,    CPIR, INIR, OTIR,

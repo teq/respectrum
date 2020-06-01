@@ -15,7 +15,7 @@ const P_SHIFT: u8 = 4;
 const Q_SHIFT: u8 = 3;
 
 /// Merge high and low u8 bytes to a u18 word
-macro_rules! word {
+macro_rules! mkword {
     ($high: expr, $low: expr) => { (($high as u16) << 8) | $low as u16 }
 }
 
@@ -77,8 +77,8 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                         } else {
                             Token::LD_RP_AtMM(RegPair::from(p))
                         };
-                        let high = yield Token::Operand(low);
-                        Token::Operand(high)
+                        let high = yield Token::Operand(OperandValue::Byte(low));
+                        Token::Operand(OperandValue::Word(mkword!(high, low)))
                     },
                     4 => Token::NEG,
                     5 => if y == 1 { Token::RETI } else { Token::RETN },
@@ -112,7 +112,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 _ => unreachable!()
             },
 
-            _ => match byte & X_MASK & Z_MASK {
+            _ => match byte & (X_MASK | Z_MASK) {
 
                 // x=0, z=0
                 0o000 => match y {
@@ -127,24 +127,24 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                         Token::Offset(offset as i8)
                     }
                 },
-    
+
                 // x=0, z=1
                 0o001 => {
                     if q == 0 {
                         let low = yield Token::LD_RP_NN(RegPair::from(p));
-                        let high = yield Token::Operand(low);
-                        Token::Operand(high)
+                        let high = yield Token::Operand(OperandValue::Byte(low));
+                        Token::Operand(OperandValue::Word(mkword!(high, low)))
                     } else {
                         Token::ADD_HL_RP(RegPair::from(p))
                     }
                 },
-    
+
                 // x=0, z=2
                 0o002 => match y {
-                    0 => Token::LD_RP_A(RegPair::BC),
-                    1 => Token::LD_A_RP(RegPair::BC),
-                    2 => Token::LD_RP_A(RegPair::DE),
-                    3 => Token::LD_A_RP(RegPair::DE),
+                    0 => Token::LD_AtRP_A(RegPair::BC),
+                    1 => Token::LD_A_AtRP(RegPair::BC),
+                    2 => Token::LD_AtRP_A(RegPair::DE),
+                    3 => Token::LD_A_AtRP(RegPair::DE),
                     _ => {
                         let low = yield match y {
                             4 => Token::LD_MM_HL,
@@ -153,29 +153,29 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                             7 => Token::LD_A_MM,
                             _ => unreachable!()
                         };
-                        let high = yield Token::Operand(low);
-                        Token::Operand(high)
+                        let high = yield Token::Operand(OperandValue::Byte(low));
+                        Token::Operand(OperandValue::Word(mkword!(high, low)))
                     }
                 },
-    
+
                 // x=0, z=3
                 0o003 => {
                     let rp = RegPair::from(p);
                     if q == 0 { Token::INC_RP(rp) } else { Token::DEC_RP(rp) }
                 },
-    
+
                 // x=0, z=4
                 0o004 => Token::INC_RG(Reg::from(y)),
-    
+
                 // x=0, z=5
                 0o005 => Token::DEC_RG(Reg::from(y)),
-    
+
                 // x=0, z=6
                 0o006 => {
                     let operand = yield Token::LD_RG_N(Reg::from(y));
-                    Token::Operand(operand)
+                    Token::Operand(OperandValue::Byte(operand))
                 },
-    
+
                 // x=0, z=7
                 0o007 => match y {
                     0 => Token::RLCA,
@@ -188,10 +188,10 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                     7 => Token::CCF,
                     _ => unreachable!()
                 },
-    
+
                 // x=3, z=0
                 0o300 => Token::RET(Condition::from(y)),
-    
+
                 // x=3, z=1
                 0o301 => {
                     if q == 0 {
@@ -210,24 +210,24 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                         }
                     }
                 },
-    
+
                 // x=3, z=2
                 0o302 => {
                     let low = yield Token::JP(Condition::from(y));
-                    let high = yield Token::Operand(low);
-                    Token::Operand(high)
+                    let high = yield Token::Operand(OperandValue::Byte(low));
+                    Token::Operand(OperandValue::Word(mkword!(high, low)))
                 },
-    
+
                 // x=3, z=3
                 0o303 => match y {
                     0 => {
                         let low = yield Token::JP(Condition::None);
-                        let high = yield Token::Operand(low);
-                        Token::Operand(high)
+                        let high = yield Token::Operand(OperandValue::Byte(low));
+                        Token::Operand(OperandValue::Word(mkword!(high, low)))
                     },
                     2 | 3 => {
                         let port = yield if y == 2 { Token::OUT_N_A } else { Token::IN_A_N };
-                        Token::Operand(port)
+                        Token::Operand(OperandValue::Byte(port))
                     },
                     4 => Token::EX_AtSP_HL,
                     5 => Token::EX_DE_HL,
@@ -235,14 +235,14 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                     7 => Token::EI,
                     _ => unreachable!()
                 },
-    
+
                 // x=3, z=4
                 0o304 => {
                     let low = yield Token::CALL(Condition::from(y));
-                    let high = yield Token::Operand(low);
-                    Token::Operand(high)
+                    let high = yield Token::Operand(OperandValue::Byte(low));
+                    Token::Operand(OperandValue::Word(mkword!(high, low)))
                 },
-    
+
                 // x=3, z=5
                 0o305 => {
                     if q == 0 {
@@ -253,44 +253,40 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                         Token::PUSH(rp)
                     } else {
                         let low = yield Token::CALL(Condition::None);
-                        let high = yield Token::Operand(low);
-                        Token::Operand(high)
+                        let high = yield Token::Operand(OperandValue::Byte(low));
+                        Token::Operand(OperandValue::Word(mkword!(high, low)))
                     }
                 },
-    
+
                 // x=3, z=6
                 0o306 => {
                     let operand = yield Token::ALU_N(AluOp::from(y));
-                    Token::Operand(operand)
+                    Token::Operand(OperandValue::Byte(operand))
                 },
-    
+
                 // x=3, z=7
                 0o307 => Token::RST(y * 8),
-    
-                _ => match byte & X_MASK {
-    
-                    // x=1
+
+                _ => match x {
+
                     1 => {
-                        if (byte & Y_MASK & Z_MASK) == 0o66 {
+                        if y == 6 && z == 6 {
                             Token::HALT
                         } else {
                             Token::LD_RG_RG(Reg::from(y), Reg::from(z))
                         }
                     },
-    
-                    // x=2
+
                     2 => Token::ALU_RG(AluOp::from(y), Reg::from(z)),
-    
+
                     _ => unreachable!()
-    
+
                 }
-    
+
             }
 
         }
 
-        
-            
     }
 
 }
@@ -318,7 +314,7 @@ pub fn prefix_decoder() -> impl Generator<u8, Yield=Token> {
                     0xdd | 0xed | 0xfd => byte as u16,
 
                     // DD or FD followed by CB gives DDCB or FDCB
-                    0xcb => word!(val, byte),
+                    0xcb => mkword!(val, byte),
 
                     // Otherwise it is followed by opcode
                     _ => return
@@ -344,28 +340,6 @@ pub fn prefix_decoder() -> impl Generator<u8, Yield=Token> {
 
         }
 
-    }
-
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn prefix_decoder_is_able_to_parse_cb_prefix() {
-        let mut decoder = prefix_decoder();
-        let a = Pin::new(&mut decoder).resume(0xcb);
-        // assert_eq!(a, GeneratorState::Yielded(Token::Prefix(0xcb)));
-        let b = Pin::new(&mut decoder).resume(0x0);
-        // assert_eq!(b, GeneratorState::Complete(Token::Opcode(0)));
-    }
-
-    #[test]
-    fn prefix_decoder_is_able_to_parse_ed_prefix() {
-        let mut decoder = prefix_decoder();
-        let bytes: Vec<u8> = vec![0xed, 0x00];
-        // let tok = Pin::new(&mut decoder).resume(1);
     }
 
 }

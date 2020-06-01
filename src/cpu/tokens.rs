@@ -4,7 +4,7 @@ pub enum Token {
 
     Prefix(u16),
     Offset(i8),
-    Operand(u8),
+    Operand(OperandValue),
 
     // no prefix
 
@@ -14,8 +14,8 @@ pub enum Token {
     JR(Condition),
     LD_RP_NN(RegPair),
     ADD_HL_RP(RegPair),
-    LD_RP_A(RegPair),
-    LD_A_RP(RegPair),
+    LD_AtRP_A(RegPair),
+    LD_A_AtRP(RegPair),
     LD_MM_HL,
     LD_HL_MM,
     LD_MM_A,
@@ -78,17 +78,27 @@ pub enum Token {
     // CB prefix
 
     SH(ShiftOp, Reg),
+    LDSH(Reg, ShiftOp, Reg),
     BIT(u8, Reg),
     RES(u8, Reg),
+    LDRES(Reg, u8, Reg),
     SET(u8, Reg),
+    LDSET(Reg, u8, Reg),
 
+}
+
+/// Opcode operand value
+#[derive(Debug)]
+pub enum OperandValue {
+    Byte(u8),
+    Word(u16)
 }
 
 /// 8-bit register
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reg {
     B = 0, C, D, E, H, L, AtHL, A, // DO NOT reorder
-    R, I, IXH, IXL, IYH, IYL,
+    R, I, IXH, IXL, IYH, IYL, AtIXd, AtIYd,
 }
 
 impl From<u8> for Reg {

@@ -42,7 +42,7 @@ pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<String>
             };
 
             let line = format!(
-                "{:0>4X}: {:.<8} | {}",
+                "{:0>4X}: {:<11} | {}",
                 address, format_bytes(&bytes), mnemonic
             );
             byte = yield Some(line);
@@ -56,7 +56,7 @@ pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<String>
 
 fn format_bytes(bytes: &Vec<u8>) -> String {
     let hex_bytes: Vec<String> = bytes.iter().map(|byte| format!("{:0>2X}", byte)).collect();
-    hex_bytes.concat()
+    hex_bytes.join(" ")
 }
 
 fn format_mnemonic(opcode: Token, offset: Option<i8>, operand: Option<OperandValue>) -> String {

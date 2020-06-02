@@ -1,0 +1,323 @@
+0000: 8E          | ADC A,(HL)
+0001: DD 8E 20    | ADC A,(IX+32)
+0004: FD 8E C0    | ADC A,(IY-64)
+0007: 8A          | ADC A,D
+0008: CE 37       | ADC A,55
+000A: ED 4A       | ADC HL,BC
+000C: ED 5A       | ADC HL,DE
+000E: ED 6A       | ADC HL,HL
+0010: ED 7A       | ADC HL,SP
+0012: 86          | ADD A,(HL)
+0013: DD 86 14    | ADD A,(IX+20)
+0016: FD 86 D8    | ADD A,(IY-40)
+0019: 85          | ADD A,L
+001A: C6 21       | ADD A,33
+001C: 09          | ADD HL,BC
+001D: 19          | ADD HL,DE
+001E: 29          | ADD HL,HL
+001F: 39          | ADD HL,SP
+0020: DD 09       | ADD IX,BC
+0022: DD 19       | ADD IX,DE
+0024: DD 29       | ADD IX,IX
+0026: DD 39       | ADD IX,SP
+0028: FD 09       | ADD IY,BC
+002A: FD 19       | ADD IY,DE
+002C: FD 29       | ADD IY,IY
+002E: FD 39       | ADD IY,SP
+0030: A6          | AND (HL)
+0031: DD A6 38    | AND (IX+56)
+0034: FD A6 A7    | AND (IY-89)
+0037: A1          | AND C
+0038: E6 07       | AND 7
+003A: CB 4E       | BIT 1,(HL)
+003C: DD CB 04 56 | BIT 2,(IX+4)
+0040: FD CB F9 5E | BIT 3,(IY-7)
+0044: CB 63       | BIT 4,E
+0046: DC 39 30    | CALL C,12345
+0049: FC A0 5B    | CALL M,23456
+004C: D4 07 87    | CALL NC,34567
+004F: CD 6E B2    | CALL 45678
+0052: C4 D5 DD    | CALL NZ,56789
+0055: F4 4D 85    | CALL P,34125
+0058: EC 8B 5B    | CALL PE,23435
+005B: E4 23 D8    | CALL PO,55331
+005E: CC 05 A5    | CALL Z,42245
+0061: 3F          | CCF
+0062: BE          | CP (HL)
+0063: DD BE 2D    | CP (IX+45)
+0066: FD BE 36    | CP (IY+54)
+0069: BC          | CP H
+006A: FE 01       | CP 1
+006C: ED A9       | CPD
+006E: ED B9       | CPDR
+0070: ED A1       | CPI
+0072: ED B1       | CPIR
+0074: 2F          | CPL
+0075: 27          | DAA
+0076: 35          | DEC (HL)
+0077: DD 35 9C    | DEC (IX-100)
+007A: FD 35 78    | DEC (IY+120)
+007D: 3D          | DEC A
+007E: 05          | DEC B
+007F: 0B          | DEC BC
+0080: 0D          | DEC C
+0081: 15          | DEC D
+0082: 1B          | DEC DE
+0083: 1D          | DEC E
+0084: 25          | DEC H
+0085: 2B          | DEC HL
+0086: DD 2B       | DEC IX
+0088: FD 2B       | DEC IY
+008A: 2D          | DEC L
+008B: 3B          | DEC SP
+008C: F3          | DI
+008D: 10 F4       | DJNZ $-10
+008F: FB          | EI
+0090: E3          | EX (SP),HL
+0091: DD E3       | EX (SP),IX
+0093: FD E3       | EX (SP),IY
+0095: 08          | EX AF,AF'
+0096: EB          | EX DE,HL
+0097: D9          | EXX
+0098: 76          | HALT
+0099: ED 46       | IM 0
+009B: ED 56       | IM 1
+009D: ED 5E       | IM 2
+009F: ED 78       | IN A,(C)
+00A1: DB FA       | IN A,(250)
+00A3: ED 40       | IN B,(C)
+00A5: ED 48       | IN C,(C)
+00A7: ED 50       | IN D,(C)
+00A9: ED 58       | IN E,(C)
+00AB: ED 60       | IN H,(C)
+00AD: ED 68       | IN L,(C)
+00AF: 34          | INC (HL)
+00B0: DD 34 04    | INC (IX+4)
+00B3: FD 34 06    | INC (IY+6)
+00B6: 3C          | INC A
+00B7: 04          | INC B
+00B8: 03          | INC BC
+00B9: 0C          | INC C
+00BA: 14          | INC D
+00BB: 13          | INC DE
+00BC: 1C          | INC E
+00BD: 24          | INC H
+00BE: 23          | INC HL
+00BF: DD 23       | INC IX
+00C1: FD 23       | INC IY
+00C3: 2C          | INC L
+00C4: 33          | INC SP
+00C5: ED AA       | IND
+00C7: ED BA       | INDR
+00C9: ED A2       | INI
+00CB: ED B2       | INIR
+00CD: C3 84 7D    | JP 32132
+00D0: E9          | JP (HL)
+00D1: DD E9       | JP (IX)
+00D3: FD E9       | JP (IY)
+00D5: DA 2D 5B    | JP C,23341
+00D8: FA 58 7E    | JP M,32344
+00DB: D2 D7 2B    | JP NC,11223
+00DE: C2 47 A5    | JP NZ,42311
+00E1: F2 03 55    | JP P,21763
+00E4: EA 69 80    | JP PE,32873
+00E7: E2 B8 57    | JP PO,22456
+00EA: CA 98 2D    | JP Z,11672
+00ED: 18 62       | JR $+100
+00EF: 38 35       | JR C,$+55
+00F1: 30 0A       | JR NC,$+12
+00F3: 20 DE       | JR NZ,$-32
+00F5: 28 E8       | JR Z,$-22
+00F7: 02          | LD (BC),A
+00F8: 12          | LD (DE),A
+00F9: 71          | LD (HL),C
+00FA: 36 03       | LD (HL),3
+00FC: DD 70 04    | LD (IX+4),B
+00FF: DD 36 03 01 | LD (IX+3),1
+0103: FD 71 02    | LD (IY+2),C
+0106: FD 36 01 02 | LD (IY+1),2
+010A: 32 39 30    | LD (12345),A
+010D: ED 43 39 30 | LD (12345),BC
+0111: ED 53 39 30 | LD (12345),DE
+0115: 22 39 30    | LD (12345),HL
+0118: DD 22 39 30 | LD (12345),IX
+011C: FD 22 39 30 | LD (12345),IY
+0120: ED 73 39 30 | LD (12345),SP
+0124: 0A          | LD A,(BC)
+0125: 1A          | LD A,(DE)
+0126: 7E          | LD A,(HL)
+0127: DD 7E 14    | LD A,(IX+20)
+012A: FD 7E 1E    | LD A,(IY+30)
+012D: 3A DE 52    | LD A,(21214)
+0130: 7A          | LD A,D
+0131: ED 57       | LD A,I
+0133: 3E 05       | LD A,5
+0135: ED 5F       | LD A,R
+0137: 46          | LD B,(HL)
+0138: DD 46 01    | LD B,(IX+1)
+013B: FD 46 02    | LD B,(IY+2)
+013E: 44          | LD B,H
+013F: 06 01       | LD B,1
+0141: ED 4B 91 7D | LD BC,(32145)
+0145: 01 5E 5A    | LD BC,23134
+0148: 4E          | LD C,(HL)
+0149: DD 4E 03    | LD C,(IX+3)
+014C: FD 4E 04    | LD C,(IY+4)
+014F: 48          | LD C,B
+0150: 0E 02       | LD C,2
+0152: 56          | LD D,(HL)
+0153: DD 56 05    | LD D,(IX+5)
+0156: FD 56 06    | LD D,(IY+6)
+0159: 50          | LD D,B
+015A: 16 04       | LD D,4
+015C: ED 5B B5 2F | LD DE,(12213)
+0160: 11 A1 82    | LD DE,33441
+0163: 5E          | LD E,(HL)
+0164: DD 5E 07    | LD E,(IX+7)
+0167: FD 5E 08    | LD E,(IY+8)
+016A: 59          | LD E,C
+016B: 1E 05       | LD E,5
+016D: 66          | LD H,(HL)
+016E: DD 66 09    | LD H,(IX+9)
+0171: FD 66 00    | LD H,(IY+0)
+0174: 62          | LD H,D
+0175: 26 07       | LD H,7
+0177: 2A 8A 86    | LD HL,(34442)
+017A: 2A 31 5B    | LD HL,(23345)
+017D: 21 3E 57    | LD HL,22334
+0180: ED 47       | LD I,A
+0182: DD 2A 37 30 | LD IX,(12343)
+0186: DD 21 91 30 | LD IX,12433
+018A: FD 2A 5C 5F | LD IY,(24412)
+018E: FD 21 72 7D | LD IY,32114
+0192: 6E          | LD L,(HL)
+0193: DD 6E FF    | LD L,(IX-1)
+0196: FD 6E FE    | LD L,(IY-2)
+0199: 6B          | LD L,E
+019A: 2E 04       | LD L,4
+019C: ED 4F       | LD R,A
+019E: ED 7B C5 81 | LD SP,(33221)
+01A2: F9          | LD SP,HL
+01A3: DD F9       | LD SP,IX
+01A5: FD F9       | LD SP,IY
+01A7: 31 DD 52    | LD SP,21213
+01AA: ED A8       | LDD
+01AC: ED B8       | LDDR
+01AE: ED A0       | LDI
+01B0: ED B0       | LDIR
+01B2: ED 44       | NEG
+01B4: 00          | NOP
+01B5: B6          | OR (HL)
+01B6: DD B6 FD    | OR (IX-3)
+01B9: FD B6 FC    | OR (IY-4)
+01BC: B3          | OR E
+01BD: F6 21       | OR 33
+01BF: ED BB       | OTDR
+01C1: ED B3       | OTIR
+01C3: ED 79       | OUT (C),A
+01C5: ED 41       | OUT (C),B
+01C7: ED 49       | OUT (C),C
+01C9: ED 51       | OUT (C),D
+01CB: ED 59       | OUT (C),E
+01CD: ED 61       | OUT (C),H
+01CF: ED 69       | OUT (C),L
+01D1: D3 D4       | OUT (212),A
+01D3: ED AB       | OUTD
+01D5: ED A3       | OUTI
+01D7: F1          | POP AF
+01D8: C1          | POP BC
+01D9: D1          | POP DE
+01DA: E1          | POP HL
+01DB: DD E1       | POP IX
+01DD: FD E1       | POP IY
+01DF: F5          | PUSH AF
+01E0: C5          | PUSH BC
+01E1: D5          | PUSH DE
+01E2: E5          | PUSH HL
+01E3: DD E5       | PUSH IX
+01E5: FD E5       | PUSH IY
+01E7: CB BE       | RES 7,(HL)
+01E9: DD CB 01 B6 | RES 6,(IX+1)
+01ED: FD CB 02 AE | RES 5,(IY+2)
+01F1: CB A4       | RES 4,H
+01F3: C9          | RET
+01F4: D8          | RET C
+01F5: F8          | RET M
+01F6: D0          | RET NC
+01F7: C0          | RET NZ
+01F8: F0          | RET P
+01F9: E8          | RET PE
+01FA: E0          | RET PO
+01FB: C8          | RET Z
+01FC: ED 4D       | RETI
+01FE: ED 45       | RETN
+0200: CB 16       | RL (HL)
+0202: DD CB 0A 16 | RL (IX+10)
+0206: FD CB 0B 16 | RL (IY+11)
+020A: CB 15       | RL L
+020C: 17          | RLA
+020D: CB 06       | RLC (HL)
+020F: DD CB 0C 06 | RLC (IX+12)
+0213: FD CB 0D 06 | RLC (IY+13)
+0217: CB 07       | RLC A
+0219: 07          | RLCA
+021A: ED 6F       | RLD
+021C: CB 1E       | RR (HL)
+021E: DD CB 0E 1E | RR (IX+14)
+0222: FD CB 0F 1E | RR (IY+15)
+0226: CB 19       | RR C
+0228: 1F          | RRA
+0229: CB 0E       | RRC (HL)
+022B: DD CB 10 0E | RRC (IX+16)
+022F: FD CB 11 0E | RRC (IY+17)
+0233: CB 08       | RRC B
+0235: 0F          | RRCA
+0236: ED 67       | RRD
+0238: C7          | RST 0
+0239: CF          | RST 8H
+023A: D7          | RST 10H
+023B: DF          | RST 18H
+023C: E7          | RST 20H
+023D: EF          | RST 28H
+023E: F7          | RST 30H
+023F: FF          | RST 38H
+0240: 9E          | SBC (HL)
+0241: DD 9E 12    | SBC A,(IX+18)
+0244: FD 9E 13    | SBC A,(IY+19)
+0247: DE 04       | SBC A,4
+0249: 9A          | SBC D
+024A: ED 42       | SBC HL,BC
+024C: ED 52       | SBC HL,DE
+024E: ED 62       | SBC HL,HL
+0250: ED 72       | SBC HL,SP
+0252: 37          | SCF
+0253: CB E6       | SET 4,(HL)
+0255: DD CB 14 EE | SET 5,(IX+20)
+0259: FD CB 15 F6 | SET 6,(IY+21)
+025D: CB FF       | SET 7,A
+025F: CB 26       | SLA (HL)
+0261: DD CB 16 26 | SLA (IX+22)
+0265: FD CB 17 26 | SLA (IY+23)
+0269: CB 23       | SLA E
+026B: CB 36       | SLL (HL)
+026D: DD CB 18 36 | SLL (IX+24)
+0271: FD CB 19 36 | SLL (IY+25)
+0275: CB 34       | SLL H
+0277: CB 2E       | SRA (HL)
+0279: DD CB 1A 2E | SRA (IX+26)
+027D: FD CB 1B 2E | SRA (IY+27)
+0281: CB 2D       | SRA L
+0283: CB 3E       | SRL (HL)
+0285: DD CB 1C 3E | SRL (IX+28)
+0289: FD CB 1D 3E | SRL (IY+29)
+028D: CB 38       | SRL B
+028F: 96          | SUB (HL)
+0290: DD 96 1E    | SUB (IX+30)
+0293: FD 96 1F    | SUB (IY+31)
+0296: 91          | SUB C
+0297: D6 05       | SUB 5
+0299: AE          | XOR (HL)
+029A: DD AE 20    | XOR (IX+32)
+029D: FD AE 21    | XOR (IY+33)
+02A0: AA          | XOR D
+02A1: EE 06       | XOR 6

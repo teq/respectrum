@@ -1,9 +1,10 @@
 use std::ops::{Generator, GeneratorState};
 use std::pin::Pin;
+use std::fmt;
 use super::tokens::*;
 use super::decoder::*;
 
-pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<String>> {
+pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<Line>> {
 
     move |mut byte: u8| {
 
@@ -41,17 +42,27 @@ pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<String>
 
             };
 
-            let line = format!(
-                "{:0>4X}: {:<11} | {}",
-                address, format_bytes(&bytes), mnemonic
-            );
-            byte = yield Some(line);
-            address += bytes.len() as u16;
+            let step = bytes.len() as u16;
+            byte = yield Some(Line { address, bytes, mnemonic });
+            address += step;
 
         }
 
     }
 
+}
+
+#[derive(Default, Debug)]
+pub struct Line {
+    pub address: u16,
+    pub bytes: Vec<u8>,
+    pub mnemonic: String
+}
+
+impl fmt::Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:0>4X}: {:<11} | {}", self.address, format_bytes(&self.bytes), self.mnemonic)
+    }
 }
 
 fn format_bytes(bytes: &Vec<u8>) -> String {

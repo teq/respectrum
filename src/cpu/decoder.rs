@@ -2,18 +2,19 @@ use std::ops::{Generator, GeneratorState};
 use std::pin::Pin;
 use super::tokens::*;
 
+/// Merge high and low u8 bytes to a u16 word
+macro_rules! mkword {
+    ($high: expr, $low: expr) => { (($high as u16) << 8) | $low as u16 }
+}
+
 fn get_x(byte: u8) -> u8 { (byte & 0b11000000) >> 6 }
 fn get_y(byte: u8) -> u8 { (byte & 0b00111000) >> 3 }
 fn get_z(byte: u8) -> u8 {  byte & 0b00000111       }
 fn get_p(byte: u8) -> u8 { (byte & 0b00110000) >> 4 }
 fn get_q(byte: u8) -> u8 { (byte & 0b00001000) >> 3 }
 
-/// Merge high and low u8 bytes to a u16 word
-macro_rules! mkword {
-    ($high: expr, $low: expr) => { (($high as u16) << 8) | $low as u16 }
-}
-
-/// Yields decoded tokens and returns complete opcode token when it is decoded
+/// Create generator which accepts bytes, yields decoded
+/// tokens and returns opcode token when it is decoded
 pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
     |mut byte: u8| {
@@ -119,7 +120,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 2 => {
                     let (z, y) = (get_z(byte), get_y(byte));
                     if z <= 3 && y >= 4 {
-                        Token::BLI(BlockOp::from((y << 2 ) | z))
+                        Token::BLOP(BlockOp::from((y << 2 ) | z))
                     } else {
                         Token::NOP
                     }
@@ -130,7 +131,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
             Some(0xcb) => {
                 let (y, z) = (get_y(byte), get_z(byte));
                 match get_x(byte) {
-                    0 => Token::SH(ShiftOp::from(y), Reg::from(z)),
+                    0 => Token::SHOP(ShiftOp::from(y), Reg::from(z)),
                     1 => Token::BIT(y, Reg::from(z)),
                     2 => Token::RES(y, Reg::from(z)),
                     3 => Token::SET(y, Reg::from(z)),
@@ -144,7 +145,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 match get_x(byte) {
                     0 => {
                         if z == 6 {
-                            Token::SH(ShiftOp::from(y), alt_reg(Reg::AtHL))
+                            Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL))
                         } else {
                             Token::LDSH(alt_reg(Reg::from(z)), ShiftOp::from(y), alt_reg(Reg::AtHL))
                         }
@@ -380,7 +381,8 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
 }
 
-/// Yields decoded prefix tokens and completes on first non-prefix token
+/// Create generator which accepts bytes, yields decoded
+/// prefix tokens and completes on first non-prefix token
 pub fn prefix_decoder() -> impl Generator<u8, Yield=Token> {
 
     |mut byte: u8| {

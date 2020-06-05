@@ -12,31 +12,28 @@ pub fn disassembler(mut address: u16) -> impl Generator<u8, Yield=Option<Line>> 
 
             let mut decoder = opcode_decoder();
             let mut bytes: Vec<u8> = Vec::with_capacity(4);
-            let mut prefix: Option<u16> = None;
             let mut opcode: Option<Token> = None;
             let mut offset: Option<i8> = None;
             let mut operand: Option<OperandValue> = None;
 
             let mnemonic = loop {
 
-                let mut process_token = |token: Token| {
-                    match token {
-                        Token::Prefix(value) => prefix = Some(value),
+                bytes.push(byte);
+                let state = Pin::new(&mut decoder).resume(byte);
+
+                match state {
+                    GeneratorState::Yielded(token) | GeneratorState::Complete(token) => match token {
+                        Token::Prefix(_) => (),
                         Token::Offset(value) => offset = Some(value),
                         Token::Operand(value) => operand = Some(value),
                         other => opcode = Some(other)
                     }
-                };
+                }
 
-                bytes.push(byte);
-                match Pin::new(&mut decoder).resume(byte) {
-                    GeneratorState::Yielded(token) => {
-                        process_token(token);
-                        byte = yield None;
-                    },
-                    GeneratorState::Complete(token) => {
-                        process_token(token);
-                        break format_mnemonic(opcode.unwrap(), offset, operand);
+                match state {
+                    GeneratorState::Yielded(_) => byte = yield None,
+                    GeneratorState::Complete(_) => {
+                        break format_mnemonic(opcode.unwrap(), offset, operand)
                     }
                 }
 
@@ -75,10 +72,10 @@ fn format_mnemonic(opcode: Token, offset: Option<i8>, operand: Option<OperandVal
     match opcode {
         Token::NOP => String::from("NOP"),
         Token::EX_AF => String::from("EX AF,AF'"),
-        Token::DJNZ => format!("DJNZ ${:+}", offset.unwrap() + 2),
+        Token::DJNZ => format!("DJNZ ${:+}", offset.unwrap() as i16 + 2),
         Token::JR(cond) => match cond {
-            Condition::None => format!("JR ${:+}", offset.unwrap() + 2),
-            _ => format!("JR {},${:+}", format_condition(cond), offset.unwrap() + 2)
+            Condition::None => format!("JR ${:+}", offset.unwrap() as i16 + 2),
+            _ => format!("JR {},${:+}", format_condition(cond), offset.unwrap() as i16 + 2)
         },
         Token::LD_RP_NN(rpair) => format!("LD {},{}", format_regpair(rpair), expect_word_operand(operand)),
         Token::ADD_RP_RP(dst, src) => format!("ADD {},{}", format_regpair(dst), format_regpair(src)),
@@ -142,14 +139,14 @@ fn format_mnemonic(opcode: Token, offset: Option<i8>, operand: Option<OperandVal
         Token::IM(mode) => format!("IM {}", format_int_mode(mode)),
         Token::RRD => String::from("RRD"),
         Token::RLD => String::from("RLD"),
-        Token::BLI(op) => String::from(format_block_op(op)),
+        Token::BLOP(op) => String::from(format_block_op(op)),
 
-        Token::SH(op, reg) => format_shift_op(op, reg, offset),
+        Token::SHOP(op, reg) => format_shift_op(op, reg, offset),
         Token::BIT(bit, reg) => format!("BIT {},{}", bit, format_reg(reg, offset)),
         Token::RES(bit, reg) => format!("RES {},{}", bit, format_reg(reg, offset)),
         Token::SET(bit, reg) => format!("SET {},{}", bit, format_reg(reg, offset)),
 
-        _ => String::from("???")
+        _ => unreachable!()
     }
 
 }

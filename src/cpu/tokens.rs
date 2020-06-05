@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+
 /// Decoded CPU token
-#[derive(Debug)]
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy)]
 pub enum Token {
 
     Prefix(u16),
@@ -67,11 +70,11 @@ pub enum Token {
     IM(IntMode),
     RRD,
     RLD,
-    BLI(BlockOp),
+    BLOP(BlockOp),
 
     // CB prefix
 
-    SH(ShiftOp, Reg),
+    SHOP(ShiftOp, Reg),
     LDSH(Reg, ShiftOp, Reg),
     BIT(u8, Reg),
     RES(u8, Reg),
@@ -82,7 +85,7 @@ pub enum Token {
 }
 
 /// Opcode operand value
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum OperandValue {
     Byte(u8),
     Word(u16)

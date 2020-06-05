@@ -6,18 +6,18 @@ pub enum Token {
     Offset(i8),
     Operand(OperandValue),
 
-    // no prefix
+    // DD, FD, no prefix
 
     NOP,
     EX_AF,
     DJNZ,
     JR(Condition),
     LD_RP_NN(RegPair),
-    ADD_HL_RP(RegPair),
+    ADD_RP_RP(RegPair, RegPair),
     LD_AtRP_A(RegPair),
     LD_A_AtRP(RegPair),
-    LD_MM_HL,
-    LD_HL_MM,
+    LD_MM_RP(RegPair),
+    LD_RP_MM(RegPair),
     LD_MM_A,
     LD_A_MM,
     INC_RP(RegPair),
@@ -36,12 +36,12 @@ pub enum Token {
     RET(Condition),
     POP(RegPair),
     EXX,
-    JP_HL,
-    LD_SP_HL,
+    JP_RP(RegPair),
+    LD_SP_RP(RegPair),
     JP(Condition),
     OUT_N_A,
     IN_A_N,
-    EX_AtSP_HL,
+    EX_AtSP_RP(RegPair),
     EX_DE_HL,
     DI,
     EI,
@@ -61,16 +61,10 @@ pub enum Token {
     OUT_AtBC_0,
     SBC_HL_RP(RegPair),
     ADC_HL_RP(RegPair),
-    LD_AtMM_RP(RegPair),
-    LD_RP_AtMM(RegPair),
     NEG,
     RETN,
     RETI,
     IM(IntMode),
-    LD_I_A,
-    LD_R_A,
-    LD_A_I,
-    LD_A_R,
     RRD,
     RLD,
     BLI(BlockOp),
@@ -117,6 +111,15 @@ pub enum RegPair {
 impl From<u8> for RegPair {
     fn from(code: u8) -> Self {
         unsafe { std::mem::transmute(code & 0b11) }
+    }
+}
+
+impl RegPair {
+    pub fn prefer_sp(self) -> RegPair {
+        return if self == RegPair::SPorAF { RegPair::SP } else { self };
+    }
+    pub fn prefer_af(self) -> RegPair {
+        return if self == RegPair::SPorAF { RegPair::AF } else { self };
     }
 }
 

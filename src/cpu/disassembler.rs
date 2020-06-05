@@ -74,22 +74,25 @@ fn format_mnemonic(opcode: Token, offset: Option<i8>, operand: Option<OperandVal
 
     match opcode {
         Token::NOP => String::from("NOP"),
-        Token::EX_AF => String::from("EX AF,AF`"),
-        Token::DJNZ => format!("DJNZ ${:+}", offset.unwrap()),
-        Token::JR(cond) => format!("JR {},${:+}", format_condition(cond), offset.unwrap()),
-        Token::LD_RP_NN(rpair) => format!("LD {},{:X}", format_regpair(rpair), expect_word_operand(operand)),
-        Token::ADD_HL_RP(rpair) => format!("ADD HL,{}", format_regpair(rpair)),
-        Token::LD_AtRP_A(rpair) => format!("ADD ({}),A", format_regpair(rpair)),
-        Token::LD_A_AtRP(rpair) => format!("ADD A,({})", format_regpair(rpair)),
-        Token::LD_MM_HL => format!("LD ({}), HL", expect_word_operand(operand)),
-        Token::LD_HL_MM => format!("LD HL, ({})", expect_word_operand(operand)),
-        Token::LD_MM_A => format!("LD ({}), A", expect_word_operand(operand)),
-        Token::LD_A_MM => format!("LD A, ({})", expect_word_operand(operand)),
+        Token::EX_AF => String::from("EX AF,AF'"),
+        Token::DJNZ => format!("DJNZ ${:+}", offset.unwrap() + 2),
+        Token::JR(cond) => match cond {
+            Condition::None => format!("JR ${:+}", offset.unwrap() + 2),
+            _ => format!("JR {},${:+}", format_condition(cond), offset.unwrap() + 2)
+        },
+        Token::LD_RP_NN(rpair) => format!("LD {},{}", format_regpair(rpair), expect_word_operand(operand)),
+        Token::ADD_RP_RP(dst, src) => format!("ADD {},{}", format_regpair(dst), format_regpair(src)),
+        Token::LD_AtRP_A(rpair) => format!("LD ({}),A", format_regpair(rpair)),
+        Token::LD_A_AtRP(rpair) => format!("LD A,({})", format_regpair(rpair)),
+        Token::LD_MM_RP(rpair) => format!("LD ({}),{}", expect_word_operand(operand), format_regpair(rpair)),
+        Token::LD_RP_MM(rpair) => format!("LD {},({})", format_regpair(rpair), expect_word_operand(operand)),
+        Token::LD_MM_A => format!("LD ({}),A", expect_word_operand(operand)),
+        Token::LD_A_MM => format!("LD A,({})", expect_word_operand(operand)),
         Token::INC_RP(rpair) => format!("INC {}", format_regpair(rpair)),
         Token::DEC_RP(rpair) => format!("DEC {}", format_regpair(rpair)),
-        Token::INC_RG(reg) => format!("INC {}", format_reg(reg)),
-        Token::DEC_RG(reg) => format!("DEC {}", format_reg(reg)),
-        Token::LD_RG_N(reg) => format!("LD {},{:X}", format_reg(reg), expect_byte_operand(operand)),
+        Token::INC_RG(reg) => format!("INC {}", format_reg(reg, offset)),
+        Token::DEC_RG(reg) => format!("DEC {}", format_reg(reg, offset)),
+        Token::LD_RG_N(reg) => format!("LD {},{}", format_reg(reg, offset), expect_byte_operand(operand)),
         Token::RLCA => String::from("RLCA"),
         Token::RRCA => String::from("RRCA"),
         Token::RLA => String::from("RLA"),
@@ -104,29 +107,47 @@ fn format_mnemonic(opcode: Token, offset: Option<i8>, operand: Option<OperandVal
         },
         Token::POP(rpair) => format!("POP {}", format_regpair(rpair)),
         Token::EXX => String::from("EXX"),
-        Token::JP_HL => String::from("JP (HL)"),
-        Token::LD_SP_HL => String::from("LD SP,HL"),
+        Token::JP_RP(rpair) => format!("JP ({})", format_regpair(rpair)),
+        Token::LD_SP_RP(rpair) => format!("LD SP,{}", format_regpair(rpair)),
         Token::JP(cond) => match cond {
-            Condition::None => format!("JP {:X}", expect_word_operand(operand)),
-            _ => format!("JP {},{:X}", format_condition(cond), expect_word_operand(operand))
+            Condition::None => format!("JP {}", expect_word_operand(operand)),
+            _ => format!("JP {},{}", format_condition(cond), expect_word_operand(operand))
         },
-        Token::OUT_N_A => format!("OUT ({:X}),A", expect_byte_operand(operand)),
-        Token::IN_A_N => format!("IN A,({:X})", expect_byte_operand(operand)),
-        Token::EX_AtSP_HL => String::from("EX (SP),HL"),
+        Token::OUT_N_A => format!("OUT ({}),A", expect_byte_operand(operand)),
+        Token::IN_A_N => format!("IN A,({})", expect_byte_operand(operand)),
+        Token::EX_AtSP_RP(rpair) => format!("EX (SP),{}", format_regpair(rpair)),
         Token::EX_DE_HL => String::from("EX DE,HL"),
         Token::DI => String::from("DI"),
         Token::EI => String::from("EI"),
         Token::CALL(cond) => match cond {
-            Condition::None => format!("CALL {:X}", expect_word_operand(operand)),
-            _ => format!("CALL {},{:X}", format_condition(cond), expect_word_operand(operand))
+            Condition::None => format!("CALL {}", expect_word_operand(operand)),
+            _ => format!("CALL {},{}", format_condition(cond), expect_word_operand(operand))
         },
         Token::PUSH(rpair) => format!("PUSH {}", format_regpair(rpair)),
-        Token::ALU_N(op) => format!("{} {}", format_alu_op(op), expect_byte_operand(operand)),
+        Token::ALU_N(op) => format_alu_op(op, expect_byte_operand(operand).to_string()),
         Token::RST(value) => format!("RST {}", value),
         Token::HALT => String::from("HALT"),
-        Token::LD_RG_RG(dst, src) => format!("LD {},{}", format_reg(dst), format_reg(src)),
-        Token::ALU_RG(op, reg) => format!("{} {}", format_alu_op(op), format_reg(reg)),
+        Token::LD_RG_RG(dst, src) => format!("LD {},{}", format_reg(dst, offset), format_reg(src, offset)),
+        Token::ALU_RG(op, reg) => format_alu_op(op, String::from(format_reg(reg, offset))),
 
+        Token::IN_RG_AtBC(reg) => format!("IN {},(C)", format_reg(reg, offset)),
+        Token::IN_AtBC => String::from("IN (C)"),
+        Token::OUT_AtBC_RG(reg) => format!("OUT (C),{}", format_reg(reg, offset)),
+        Token::OUT_AtBC_0 => String::from("OUT (C),0"),
+        Token::SBC_HL_RP(rpair) => format!("SBC HL,{}", format_regpair(rpair)),
+        Token::ADC_HL_RP(rpair) => format!("ADC HL,{}", format_regpair(rpair)),
+        Token::NEG => String::from("NEG"),
+        Token::RETN => String::from("RETN"),
+        Token::RETI => String::from("RETI"),
+        Token::IM(mode) => format!("IM {}", format_int_mode(mode)),
+        Token::RRD => String::from("RRD"),
+        Token::RLD => String::from("RLD"),
+        Token::BLI(op) => String::from(format_block_op(op)),
+
+        Token::SH(op, reg) => format_shift_op(op, reg, offset),
+        Token::BIT(bit, reg) => format!("BIT {},{}", bit, format_reg(reg, offset)),
+        Token::RES(bit, reg) => format!("RES {},{}", bit, format_reg(reg, offset)),
+        Token::SET(bit, reg) => format!("SET {},{}", bit, format_reg(reg, offset)),
 
         _ => String::from("???")
     }
@@ -159,7 +180,7 @@ fn format_condition(condition: Condition) -> &'static str {
         Condition::PE => "PE",
         Condition::P => "P",
         Condition::M => "M",
-        _ => unreachable!()
+        _ => unreachable!("{:?}", condition)
     }
 }
 
@@ -172,39 +193,89 @@ fn format_regpair(regpair: RegPair) -> &'static str {
         RegPair::AF => "AF",
         RegPair::IX => "IX",
         RegPair::IY => "IY",
-        _ => unreachable!()
+        _ => unreachable!("{:?}", regpair)
     }
 }
 
-fn format_reg(reg: Reg) -> &'static str {
+fn format_reg(reg: Reg, maybe_offset: Option<i8>) -> String {
     match reg {
-        Reg::B => "B",
-        Reg::C => "C",
-        Reg::D => "D",
-        Reg::E => "E",
-        Reg::H => "H",
-        Reg::L => "L",
-        Reg::AtHL => "(HL)",
-        Reg::A => "A",
-        Reg::R => "R",
-        Reg::I => "I",
-        Reg::IXH => "IXH",
-        Reg::IXL => "IXL",
-        Reg::IYH => "IYH",
-        Reg::IYL => "IYL",
-        _ => unreachable!()
+        Reg::B => String::from("B"),
+        Reg::C => String::from("C"),
+        Reg::D => String::from("D"),
+        Reg::E => String::from("E"),
+        Reg::H => String::from("H"),
+        Reg::L => String::from("L"),
+        Reg::AtHL => String::from("(HL)"),
+        Reg::A => String::from("A"),
+        Reg::R => String::from("R"),
+        Reg::I => String::from("I"),
+        Reg::IXH => String::from("IXH"),
+        Reg::IXL => String::from("IXL"),
+        Reg::IYH => String::from("IYH"),
+        Reg::IYL => String::from("IYL"),
+        Reg::AtIXd | Reg::AtIYd => {
+            let offset = maybe_offset.expect("Expecting offset");
+            if reg == Reg::AtIXd {
+                format!("(IX{:+})", offset)
+            } else {
+                format!("(IY{:+})", offset)
+            }
+        }
     }
 }
 
-fn format_alu_op(alu_op: AluOp) -> &'static str {
+fn format_alu_op(alu_op: AluOp, operand: String) -> String {
     match alu_op {
-        AluOp::ADD => "ADD",
-        AluOp::ADC => "ADC",
-        AluOp::SUB => "SUB",
-        AluOp::SBC => "SBC",
-        AluOp::AND => "AND",
-        AluOp::XOR => "XOR",
-        AluOp::OR => "OR",
-        AluOp::CP => "CP",
+        AluOp::ADD => format!("ADD A,{}", operand),
+        AluOp::ADC => format!("ADC A,{}", operand),
+        AluOp::SUB => format!("SUB A,{}", operand),
+        AluOp::SBC => format!("SBC A,{}", operand),
+        AluOp::AND => format!("AND {}", operand),
+        AluOp::XOR => format!("XOR {}", operand),
+        AluOp::OR => format!("OR {}", operand),
+        AluOp::CP => format!("CP {}", operand),
+    }
+}
+
+fn format_int_mode(mode: IntMode) -> &'static str {
+    match mode {
+        IntMode::IM0 => "0",
+        IntMode::IM01 => "0/1",
+        IntMode::IM1 => "1",
+        IntMode::IM2 => "2",
+    }
+}
+
+fn format_block_op(block_op: BlockOp) -> &'static str {
+    match block_op {
+        BlockOp::LDI => "LDI",
+        BlockOp::CPI => "CPI",
+        BlockOp::INI => "INI",
+        BlockOp::OUTI => "OUTI",
+        BlockOp::LDD => "LDD",
+        BlockOp::CPD => "CPD",
+        BlockOp::IND => "IND",
+        BlockOp::OUTD => "OUTD",
+        BlockOp::LDIR => "LDIR",
+        BlockOp::CPIR => "CPIR",
+        BlockOp::INIR => "INIR",
+        BlockOp::OTIR => "OTIR",
+        BlockOp::LDDR => "LDDR",
+        BlockOp::CPDR => "CPDR",
+        BlockOp::INDR => "INDR",
+        BlockOp::OTDR => "OTDR",
+    }
+}
+
+fn format_shift_op(shift_op: ShiftOp, reg: Reg, maybe_offset: Option<i8>) -> String {
+    match shift_op {
+        ShiftOp::RLC => format!("RLC {}", format_reg(reg, maybe_offset)),
+        ShiftOp::RRC => format!("RRC {}", format_reg(reg, maybe_offset)),
+        ShiftOp::RL => format!("RL {}", format_reg(reg, maybe_offset)),
+        ShiftOp::RR => format!("RR {}", format_reg(reg, maybe_offset)),
+        ShiftOp::SLA => format!("SLA {}", format_reg(reg, maybe_offset)),
+        ShiftOp::SRA => format!("SRA {}", format_reg(reg, maybe_offset)),
+        ShiftOp::SLL => format!("SLL {}", format_reg(reg, maybe_offset)),
+        ShiftOp::SRL => format!("SRL {}", format_reg(reg, maybe_offset)),
     }
 }

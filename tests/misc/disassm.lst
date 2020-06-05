@@ -274,18 +274,18 @@
 0235: 0F          | RRCA
 0236: ED 67       | RRD
 0238: C7          | RST 0
-0239: CF          | RST 8H
-023A: D7          | RST 10H
-023B: DF          | RST 18H
-023C: E7          | RST 20H
-023D: EF          | RST 28H
-023E: F7          | RST 30H
-023F: FF          | RST 38H
-0240: 9E          | SBC (HL)
+0239: CF          | RST 8
+023A: D7          | RST 16
+023B: DF          | RST 24
+023C: E7          | RST 32
+023D: EF          | RST 40
+023E: F7          | RST 48
+023F: FF          | RST 56
+0240: 9E          | SBC A,(HL)
 0241: DD 9E 12    | SBC A,(IX+18)
 0244: FD 9E 13    | SBC A,(IY+19)
 0247: DE 04       | SBC A,4
-0249: 9A          | SBC D
+0249: 9A          | SBC A,D
 024A: ED 42       | SBC HL,BC
 024C: ED 52       | SBC HL,DE
 024E: ED 62       | SBC HL,HL
@@ -311,11 +311,11 @@
 0285: DD CB 1C 3E | SRL (IX+28)
 0289: FD CB 1D 3E | SRL (IY+29)
 028D: CB 38       | SRL B
-028F: 96          | SUB (HL)
-0290: DD 96 1E    | SUB (IX+30)
-0293: FD 96 1F    | SUB (IY+31)
-0296: 91          | SUB C
-0297: D6 05       | SUB 5
+028F: 96          | SUB A,(HL)
+0290: DD 96 1E    | SUB A,(IX+30)
+0293: FD 96 1F    | SUB A,(IY+31)
+0296: 91          | SUB A,C
+0297: D6 05       | SUB A,5
 0299: AE          | XOR (HL)
 029A: DD AE 20    | XOR (IX+32)
 029D: FD AE 21    | XOR (IY+33)

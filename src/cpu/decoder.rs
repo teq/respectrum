@@ -67,65 +67,44 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
         match prefix {
 
-            Some(0xed) => match get_x(byte) {
-                1 => match get_z(byte) {
-                    0 => {
-                        let y = get_y(byte);
-                        if y == 6 {
-                            Token::IN_AtBC
-                        } else {
-                            Token::IN_RG_AtBC(Reg::from(y))
-                        }
-                    },
-                    1 => {
-                        let y = get_y(byte);
-                        if y == 6 {
-                            Token::OUT_AtBC_0
-                        } else {
-                            Token::OUT_AtBC_RG(Reg::from(y))
-                        }
-                    },
-                    2 => {
-                        let (p, q) = (get_p(byte), get_q(byte));
-                        if q == 0 {
-                            Token::SBC_HL_RP(RegPair::from(p).prefer_sp())
-                        } else {
-                            Token::ADC_HL_RP(RegPair::from(p).prefer_sp())
-                        }
-                    },
-                    3 => {
-                        let (p, q) = (get_p(byte), get_q(byte));
-                        let low_operand_byte = yield if q == 0 {
-                            Token::LD_MM_RP(RegPair::from(p).prefer_sp())
-                        } else {
-                            Token::LD_RP_MM(RegPair::from(p).prefer_sp())
-                        };
-                        let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
-                        Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
-                    },
-                    4 => Token::NEG,
-                    5 => if get_y(byte) == 1 { Token::RETI } else { Token::RETN },
-                    6 => Token::IM(IntMode::from(get_y(byte))),
-                    7 => match get_y(byte) {
-                        0 => Token::LD_RG_RG(Reg::I, Reg::A),
-                        1 => Token::LD_RG_RG(Reg::R, Reg::A),
-                        2 => Token::LD_RG_RG(Reg::A, Reg::I),
-                        3 => Token::LD_RG_RG(Reg::A, Reg::R),
-                        4 => Token::RRD,
-                        5 => Token::RLD,
-                        _ => Token::NOP
-                    },
-                    _ => unreachable!()
-                },
-                2 => {
-                    let (z, y) = (get_z(byte), get_y(byte));
-                    if z <= 3 && y >= 4 {
-                        Token::BLOP(BlockOp::from((y << 2 ) | z))
+            Some(0xed) => match (get_x(byte), get_y(byte), get_z(byte)) {
+                (1, 6, 0) => Token::IN_AtBC,
+                (1, y, 0) => Token::IN_RG_AtBC(Reg::from(y)),
+                (1, 6, 1) => Token::OUT_AtBC_0,
+                (1, y, 1) => Token::OUT_AtBC_RG(Reg::from(y)),
+                (1, _, 2) => {
+                    let (p, q) = (get_p(byte), get_q(byte));
+                    if q == 0 {
+                        Token::SBC_HL_RP(RegPair::from(p).prefer_sp())
                     } else {
-                        Token::NOP
+                        Token::ADC_HL_RP(RegPair::from(p).prefer_sp())
                     }
                 },
-                _ => Token::NOP
+                (1, _, 3) => {
+                    let (p, q) = (get_p(byte), get_q(byte));
+                    let low_operand_byte = yield if q == 0 {
+                        Token::LD_MM_RP(RegPair::from(p).prefer_sp())
+                    } else {
+                        Token::LD_RP_MM(RegPair::from(p).prefer_sp())
+                    };
+                    let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
+                    Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
+                },
+                (1, _, 4) => Token::NEG,
+                (1, 1, 5) => Token::RETI,
+                (1, _, 5) => Token::RETN,
+                (1, y, 6) => Token::IM(IntMode::from(y)),
+                (1, 0, 7) => Token::LD_RG_RG(Reg::I, Reg::A),
+                (1, 1, 7) => Token::LD_RG_RG(Reg::R, Reg::A),
+                (1, 2, 7) => Token::LD_RG_RG(Reg::A, Reg::I),
+                (1, 3, 7) => Token::LD_RG_RG(Reg::A, Reg::R),
+                (1, 4, 7) => Token::RRD,
+                (1, 5, 7) => Token::RLD,
+                (1, _, 7) => Token::NOP,
+                (1, _, _) => unreachable!(),
+                (2, y, z) if z <= 3 && y >= 4 => Token::BLOP(BlockOp::from((y << 2 ) | z)),
+                (2, _, _) => Token::NOP,
+                (_, _, _) => Token::NOP
             },
 
             Some(0xcb) => {
@@ -141,52 +120,34 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
             Some(0xcbdd) | Some(0xcbfd) => {
                 byte = yield Token::Offset(byte as i8); // first byte after prefix is an offset
-                let (y, z) = (get_y(byte), get_z(byte));
-                match get_x(byte) {
-                    0 => {
-                        if z == 6 {
-                            Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL))
-                        } else {
-                            Token::LDSH(alt_reg(Reg::from(z)), ShiftOp::from(y), alt_reg(Reg::AtHL))
-                        }
-                    },
-                    1 => Token::BIT(y, alt_reg(Reg::AtHL)),
-                    2 => {
-                        if z == 6 {
-                            Token::RES(y, alt_reg(Reg::AtHL))
-                        } else {
-                            Token::LDRES(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL))
-                        }
-                    },
-                    3 => {
-                        if z == 6 {
-                            Token::SET(y, alt_reg(Reg::AtHL))
-                        } else {
-                            Token::LDSET(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL))
-                        }
-                    },
-                    _ => unreachable!()
+                match (get_x(byte), get_y(byte), get_z(byte)) {
+                    (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL)),
+                    (0, y, z) => Token::LDSH(alt_reg(Reg::from(z)), ShiftOp::from(y), alt_reg(Reg::AtHL)),
+                    (1, y, _) => Token::BIT(y, alt_reg(Reg::AtHL)),
+                    (2, y, 6) => Token::RES(y, alt_reg(Reg::AtHL)),
+                    (2, y, z) => Token::LDRES(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL)),
+                    (3, y, 6) => Token::SET(y, alt_reg(Reg::AtHL)),
+                    (3, y, z) => Token::LDSET(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL)),
+                    (_, _, _) => unreachable!()
                 }
             },
 
-            Some(0xdd) | Some(0xfd) | None  => match byte & 0o307 { // mask y and z
+            Some(0xdd) | Some(0xfd) | None  => match (get_x(byte), get_y(byte), get_z(byte)) {
 
                 // x=0, z=0
-                0o000 => match get_y(byte) {
-                    0 => Token::NOP,
-                    1 => Token::EX_AF,
-                    y => {
-                        let offset_byte = yield match y {
-                            2 => Token::DJNZ,
-                            3 => Token::JR(Condition::None),
-                            _ => Token::JR(Condition::from(y & 0b11))
-                        };
-                        Token::Offset(offset_byte as i8)
-                    }
+                (0, 0, 0) => Token::NOP,
+                (0, 1, 0) => Token::EX_AF,
+                (0, y, 0) => {
+                    let offset_byte = yield match y {
+                        2 => Token::DJNZ,
+                        3 => Token::JR(Condition::None),
+                        _ => Token::JR(Condition::from(y & 0b11))
+                    };
+                    Token::Offset(offset_byte as i8)
                 },
 
                 // x=0, z=1
-                0o001 => {
+                (0, _, 1) => {
                     let p = get_p(byte);
                     if get_q(byte) == 0 {
                         let low_operand_byte = yield Token::LD_RP_NN(alt_rpair(RegPair::from(p).prefer_sp()));
@@ -198,34 +159,31 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=0, z=2
-                0o002 => match get_y(byte) {
-                    0 => Token::LD_AtRP_A(RegPair::BC),
-                    1 => Token::LD_A_AtRP(RegPair::BC),
-                    2 => Token::LD_AtRP_A(RegPair::DE),
-                    3 => Token::LD_A_AtRP(RegPair::DE),
-                    y => {
-                        let low_operand_byte = yield match y {
-                            4 => Token::LD_MM_RP(alt_rpair(RegPair::HL)),
-                            5 => Token::LD_RP_MM(alt_rpair(RegPair::HL)),
-                            6 => Token::LD_MM_A,
-                            7 => Token::LD_A_MM,
-                            _ => unreachable!()
-                        };
-                        let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
-                        Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
-                    }
+                (0, 0, 2) => Token::LD_AtRP_A(RegPair::BC),
+                (0, 1, 2) => Token::LD_A_AtRP(RegPair::BC),
+                (0, 2, 2) => Token::LD_AtRP_A(RegPair::DE),
+                (0, 3, 2) => Token::LD_A_AtRP(RegPair::DE),
+                (0, y, 2) => {
+                    let low_operand_byte = yield match y {
+                        4 => Token::LD_MM_RP(alt_rpair(RegPair::HL)),
+                        5 => Token::LD_RP_MM(alt_rpair(RegPair::HL)),
+                        6 => Token::LD_MM_A,
+                        7 => Token::LD_A_MM,
+                        _ => unreachable!()
+                    };
+                    let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
+                    Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
                 },
 
                 // x=0, z=3
-                0o003 => {
+                (0, _, 3) => {
                     let (p, q) = (get_p(byte), get_q(byte));
                     let rp = alt_rpair(RegPair::from(p).prefer_sp());
                     if q == 0 { Token::INC_RP(rp) } else { Token::DEC_RP(rp) }
                 },
 
                 // x=0, z=4,5
-                0o004 | 0o005 => {
-                    let (y, z) = (get_y(byte), get_z(byte));
+                (0, y, z @ (4 | 5)) => {
                     let opcode_token = if z == 4 {
                         Token::INC_RG(alt_reg(Reg::from(y)))
                     } else {
@@ -241,8 +199,8 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=0, z=6
-                0o006 => {
-                    byte = yield Token::LD_RG_N(alt_reg(Reg::from(get_y(byte))));
+                (0, y, 6) => {
+                    byte = yield Token::LD_RG_N(alt_reg(Reg::from(y)));
                     match prefix {
                         None => Token::Operand(OperandValue::Byte(byte)),
                         Some(_) => {
@@ -253,23 +211,49 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=0, z=7
-                0o007 => match get_y(byte) {
-                    0 => Token::RLCA,
-                    1 => Token::RRCA,
-                    2 => Token::RLA,
-                    3 => Token::RRA,
-                    4 => Token::DAA,
-                    5 => Token::CPL,
-                    6 => Token::SCF,
-                    7 => Token::CCF,
-                    _ => unreachable!()
+                (0, 0, 7) => Token::RLCA,
+                (0, 1, 7) => Token::RRCA,
+                (0, 2, 7) => Token::RLA,
+                (0, 3, 7) => Token::RRA,
+                (0, 4, 7) => Token::DAA,
+                (0, 5, 7) => Token::CPL,
+                (0, 6, 7) => Token::SCF,
+                (0, 7, 7) => Token::CCF,
+                (0, _, 7) => unreachable!(),
+
+                // x=1
+                (1, y, z) => {
+                    let dst_reg = Reg::from(y);
+                    let src_reg = Reg::from(z);
+                    let opcode_token = if dst_reg == Reg::AtHL && src_reg == Reg::AtHL {
+                        Token::HALT // exception
+                    } else if dst_reg == Reg::AtHL {
+                        Token::LD_RG_RG(alt_reg(dst_reg), src_reg)
+                    } else if src_reg == Reg::AtHL {
+                        Token::LD_RG_RG(dst_reg, alt_reg(src_reg))
+                    } else {
+                        Token::LD_RG_RG(alt_reg(dst_reg), alt_reg(src_reg))
+                    };
+                    match prefix {
+                        None => opcode_token,
+                        Some(_) => Token::Offset((yield opcode_token) as i8)
+                    }
+                },
+
+                // x=2
+                (2, y, z) => {
+                    let opcode_token = Token::ALU_RG(AluOp::from(y), alt_reg(Reg::from(z)));
+                    match prefix {
+                        None => opcode_token,
+                        Some(_) => Token::Offset((yield opcode_token) as i8)
+                    }
                 },
 
                 // x=3, z=0
-                0o300 => Token::RET(Condition::from(get_y(byte))),
+                (3, y, 0) => Token::RET(Condition::from(y)),
 
                 // x=3, z=1
-                0o301 => {
+                (3, _, 1) => {
                     let (p, q) = (get_p(byte), get_q(byte));
                     if q == 0 {
                         Token::POP(alt_rpair(RegPair::from(p).prefer_af()))
@@ -285,39 +269,37 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=3, z=2
-                0o302 => {
-                    let low_operand_byte = yield Token::JP(Condition::from(get_y(byte)));
+                (3, y, 2) => {
+                    let low_operand_byte = yield Token::JP(Condition::from(y));
                     let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
                     Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
                 },
 
                 // x=3, z=3
-                0o303 => match get_y(byte) {
-                    0 => {
-                        let low_operand_byte = yield Token::JP(Condition::None);
-                        let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
-                        Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
-                    },
-                    y @ 2 | y @ 3 => {
-                        let port_byte = yield if y == 2 { Token::OUT_N_A } else { Token::IN_A_N };
-                        Token::Operand(OperandValue::Byte(port_byte))
-                    },
-                    4 => Token::EX_AtSP_RP(alt_rpair(RegPair::HL)),
-                    5 => Token::EX_DE_HL,
-                    6 => Token::DI,
-                    7 => Token::EI,
-                    _ => unreachable!()
+                (3, 0, 3) => {
+                    let low_operand_byte = yield Token::JP(Condition::None);
+                    let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
+                    Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
                 },
+                (3, y @ (2 | 3), 3) => {
+                    let port_byte = yield if y == 2 { Token::OUT_N_A } else { Token::IN_A_N };
+                    Token::Operand(OperandValue::Byte(port_byte))
+                },
+                (3, 4, 3) => Token::EX_AtSP_RP(alt_rpair(RegPair::HL)),
+                (3, 5, 3) => Token::EX_DE_HL,
+                (3, 6, 3) => Token::DI,
+                (3, 7, 3) => Token::EI,
+                (3, _, 3) => unreachable!(),
 
                 // x=3, z=4
-                0o304 => {
-                    let low_operand_byte = yield Token::CALL(Condition::from(get_y(byte)));
+                (3, y, 4) => {
+                    let low_operand_byte = yield Token::CALL(Condition::from(y));
                     let high_operand_byte = yield Token::Operand(OperandValue::Byte(low_operand_byte));
                     Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
                 },
 
                 // x=3, z=5
-                0o305 => {
+                (3, _, 5) => {
                     let (p, q) = (get_p(byte), get_q(byte));
                     if q == 0 {
                         Token::PUSH(alt_rpair(RegPair::from(p).prefer_af()))
@@ -329,47 +311,15 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=3, z=6
-                0o306 => {
-                    let operand_byte = yield Token::ALU_N(AluOp::from(get_y(byte)));
+                (3, y, 6) => {
+                    let operand_byte = yield Token::ALU_N(AluOp::from(y));
                     Token::Operand(OperandValue::Byte(operand_byte))
                 },
 
                 // x=3, z=7
-                0o307 => Token::RST(get_y(byte) * 8),
+                (3, y, 7) => Token::RST(y * 8),
 
-                _ => match get_x(byte) {
-
-                    1 => {
-                        let dst_reg = Reg::from(get_y(byte));
-                        let src_reg = Reg::from(get_z(byte));
-                        let opcode_token = if dst_reg == Reg::AtHL && src_reg == Reg::AtHL {
-                            Token::HALT // exception
-                        } else if dst_reg == Reg::AtHL {
-                            Token::LD_RG_RG(alt_reg(dst_reg), src_reg)
-                        } else if src_reg == Reg::AtHL {
-                            Token::LD_RG_RG(dst_reg, alt_reg(src_reg))
-                        } else {
-                            Token::LD_RG_RG(alt_reg(dst_reg), alt_reg(src_reg))
-                        };
-                        match prefix {
-                            None => opcode_token,
-                            Some(_) => Token::Offset((yield opcode_token) as i8)
-                        }
-                    },
-
-                    2 => {
-                        let opcode_token = Token::ALU_RG(
-                            AluOp::from(get_y(byte)), alt_reg(Reg::from(get_z(byte)))
-                        );
-                        match prefix {
-                            None => opcode_token,
-                            Some(_) => Token::Offset((yield opcode_token) as i8)
-                        }
-                    },
-
-                    _ => unreachable!()
-
-                }
+                (_, _, _) => unreachable!()
 
             },
 

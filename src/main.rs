@@ -13,7 +13,7 @@ fn main() {
 
     let address: u16 = 0x8000;
     let offset: u16 = 0x0;
-    let mut limit = 10000;
+    let mut limit = 100;
 
     let mut file = File::open("tests/exerciser/zexall.bin").unwrap();
     let mut buffer: Vec<u8> = Vec::new();
@@ -23,8 +23,8 @@ fn main() {
     let mut disassembler = cpu::disassembler(address + offset);
 
     for byte in buffer {
-        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disassembler).resume(byte) {
-            println!("{}", line);
+        if let GeneratorState::Yielded(Some(op)) = Pin::new(&mut disassembler).resume(byte) {
+            println!("{}", op);
             limit -= 1;
         }
         if limit <= 0 {

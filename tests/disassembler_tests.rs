@@ -18,6 +18,9 @@ fn disassembler_recognizes_all_z80_opcodes() {
     // Disassembler to test
     let mut disassembler = cpu::disassembler(0);
 
+    // Mnemonic formatter
+    let formatter: cpu::operation::Formatter = Default::default();
+
     // Iterate over listing lines
     while let Some((line_num, Ok(line))) = lines.next() {
 
@@ -33,50 +36,54 @@ fn disassembler_recognizes_all_z80_opcodes() {
         // Split address, opcode bytes and parsed disassembled mnemonic
         let mut parts = body.split(|c| c == ':' || c == '|');
 
-        let address = u16::from_str_radix(parts.next().unwrap().trim(), 16).unwrap();
-        let bytes = parts.next().unwrap().trim().split(" ").map(|s| u8::from_str_radix(s, 16).unwrap());
-        let mnemonic = parts.next().unwrap().trim();
+        let expected_addr = u16::from_str_radix(parts.next().unwrap().trim(), 16).unwrap();
+        let expected_bytes = parts.next().unwrap().trim();
+        let expected_mnemonic = parts.next().unwrap().trim();
 
-        let mut bytes_iter = bytes.enumerate().peekable();
+        let mut bytes_iter = expected_bytes.split(" ")
+            .map(|s| u8::from_str_radix(s, 16).unwrap())
+            .enumerate().peekable();
 
         // Feed bytes to disassembler and observe results
         while let Some((byte_num, byte)) = bytes_iter.next() {
 
-            if let GeneratorState::Yielded(maybe_line) = Pin::new(&mut disassembler).resume(byte) {
+            if let GeneratorState::Yielded(maybe_op) = Pin::new(&mut disassembler).resume(byte) {
 
                 if bytes_iter.peek().is_some() {
 
                     // Some bytes left in current opcode, disassembler should yield nothing
-                    if maybe_line.is_some() {
+                    if let Some(op) = maybe_op {
                         report_failure(format!(
-                            "Unexpected output when parsing byte number {}: {:?}",
-                            byte_num, maybe_line
+                            "Unexpected output when parsing byte number {}: {}",
+                            byte_num, op
                         ));
                     }
 
                 } else {
 
                     // It is a last byte for current opcode, disassembler should yield a line
-                    if let Some(line) = maybe_line {
+                    if let Some(op) = maybe_op {
 
-                        if address != line.address {
+                        if expected_addr != op.addr {
                             report_failure(format!(
                                 "Wrong address. Expecting: {}, got: {}",
-                                address, line.address
+                                expected_addr, op.addr
                             ));
                         }
 
-                        // if bytes != line.bytes {
-                        //     report_failure(format!(
-                        //         "Opcode bytes do not match. Expecting: {}, got: {}",
-                        //         address, line.address
-                        //     ));
-                        // }
+                        let formatted_bytes = formatter.format_bytes(&op);
+                        if expected_bytes != formatted_bytes {
+                            report_failure(format!(
+                                "Opcode bytes do not match. Expecting: {}, got: {}",
+                                expected_bytes, formatted_bytes
+                            ));
+                        }
 
-                        if mnemonic != line.mnemonic {
+                        let formatted_mnemonic = formatter.format_mnemonic(&op);
+                        if expected_mnemonic != formatted_mnemonic {
                             report_failure(format!(
                                 "Wrong mnemonic. Expecting: {}, got: {}",
-                                mnemonic, line.mnemonic
+                                expected_mnemonic, formatted_mnemonic
                             ));
                         }
 

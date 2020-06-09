@@ -1,5 +1,6 @@
 use std::ops::{Generator, GeneratorState};
 use std::pin::Pin;
+
 use super::tokens::*;
 
 /// Merge high and low u8 bytes to a u16 word
@@ -15,7 +16,7 @@ fn get_q(byte: u8) -> u8 { (byte & 0b00001000) >> 3 }
 
 /// Create generator which accepts bytes, yields decoded
 /// tokens and returns opcode token when it is decoded
-pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
+pub fn decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
     |mut byte: u8| {
 
@@ -333,7 +334,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
 
 /// Create generator which accepts bytes, yields decoded
 /// prefix tokens and completes on first non-prefix token
-pub fn prefix_decoder() -> impl Generator<u8, Yield=Token> {
+fn prefix_decoder() -> impl Generator<u8, Yield=Token> {
 
     |mut byte: u8| {
 

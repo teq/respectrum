@@ -6,7 +6,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::pin::Pin;
 use std::ops::{Generator, GeneratorState};
-use respectrum::cpu;
+
+use respectrum::tools;
 
 #[test]
 fn disassembler_recognizes_all_z80_opcodes() {
@@ -16,10 +17,10 @@ fn disassembler_recognizes_all_z80_opcodes() {
     let mut lines = io::BufReader::new(file).lines().enumerate();
 
     // Disassembler to test
-    let mut disassembler = cpu::disassembler(0);
+    let mut disassembler = tools::disassembler(0);
 
     // Mnemonic formatter
-    let formatter: cpu::operation::Formatter = Default::default();
+    let formatter: tools::Formatter = Default::default();
 
     // Iterate over listing lines
     while let Some((line_num, Ok(line))) = lines.next() {

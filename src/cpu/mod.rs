@@ -1,11 +1,7 @@
-pub mod decoder;
-
-mod disassembler;
-pub use disassembler::*;
+mod decoder;
+pub use decoder::decoder;
 
 pub mod executor;
-
-pub mod operation;
 
 mod tokens;
 pub use tokens::*;

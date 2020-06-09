@@ -1,8 +1,9 @@
 #![feature(generators, generator_trait)]
 #![feature(or_patterns)]
 
-mod types;
-mod cpu;
+pub mod cpu;
+pub mod tools;
+pub mod types;
 
 use std::ops::{Generator, GeneratorState};
 use std::pin::Pin;
@@ -21,7 +22,7 @@ fn main() {
     file.seek(SeekFrom::Start(offset as u64)).unwrap();
     file.read_to_end(&mut buffer).unwrap();
 
-    let mut disassembler = cpu::disassembler(address + offset);
+    let mut disassembler = tools::disassembler(address + offset);
 
     for byte in buffer {
         if let GeneratorState::Yielded(Some(op)) = Pin::new(&mut disassembler).resume(byte) {

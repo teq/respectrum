@@ -1,8 +1,8 @@
 use std::ops::{Generator, GeneratorState};
 use std::pin::Pin;
-use super::decoder::*;
+
+use crate::cpu::*;
 use super::operation::*;
-use super::tokens::*;
 
 pub fn disassembler(mut addr: u16) -> impl Generator<u8, Yield=Option<Operation>> {
 
@@ -10,7 +10,7 @@ pub fn disassembler(mut addr: u16) -> impl Generator<u8, Yield=Option<Operation>
 
         loop {
 
-            let mut decoder = opcode_decoder();
+            let mut decoder = decoder();
             let mut len: u8 = 0;
             let mut bytes: [u8; 4] = [0; 4];
             let mut opcode: Option<Token> = None;

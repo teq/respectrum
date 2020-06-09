@@ -1,5 +1,6 @@
 use std::fmt;
-use super::tokens::*;
+
+use crate::cpu::*;
 
 /// Disassembled Z80 operation
 pub struct Operation {

@@ -317,7 +317,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=Token, Return=Token> {
                 },
 
                 // x=3, z=7
-                (3, y, 7) => Token::RST(y * 8),
+                (3, y, 7) => Token::RST(y),
 
                 (_, _, _) => unreachable!()
 

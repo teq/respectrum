@@ -1,5 +1,7 @@
-use std::ops::{Generator, GeneratorState};
-use std::pin::Pin;
+use std::{
+    pin::Pin,
+    ops::{Generator, GeneratorState},
+};
 
 use crate::cpu::*;
 use super::operation::*;

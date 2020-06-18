@@ -8,11 +8,12 @@ pub mod cpu;
 pub mod tools;
 pub mod types;
 
-use std::ops::{Generator, GeneratorState};
-use std::pin::Pin;
-
-use std::fs::File;
-use std::io::{prelude::*, SeekFrom};
+use std::{
+    pin::Pin,
+    fs::File,
+    io::{prelude::*, SeekFrom},
+    ops::{Generator, GeneratorState},
+};
 
 fn main() {
 

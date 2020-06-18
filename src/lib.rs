@@ -5,5 +5,6 @@
 
 pub mod bus;
 pub mod cpu;
+pub mod devs;
 pub mod tools;
 pub mod types;

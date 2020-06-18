@@ -5,3 +5,6 @@ pub mod clock;
 
 mod cpu_bus;
 pub use cpu_bus::*;
+
+mod device;
+pub use device::Device;

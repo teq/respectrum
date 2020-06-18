@@ -1,8 +1,8 @@
 use std::{
     rc::Rc,
+    pin::Pin,
     cell::Cell,
     ops::{Generator, GeneratorState},
-    pin::Pin,
 };
 
 /// System clock. Counts t-cycles with half t-cycle precision.
@@ -140,8 +140,8 @@ mod tests {
             format!("{:?}", state.seq),
             r#"RefCell { value: [(1, "fall"), (3, "fall"), (5, "fall"), (6, "rise"), (7, "fall"), (9, "fall")] }"#
         );
-        state.seq.borrow_mut().clear();
 
+        state.seq.borrow_mut().clear();
         scheduler.advance(10);
         assert_eq!(
             format!("{:?}", state.seq),

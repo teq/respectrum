@@ -2,10 +2,12 @@
 
 extern crate respectrum;
 
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::pin::Pin;
-use std::ops::{Generator, GeneratorState};
+use std::{
+    fs::File,
+    pin::Pin,
+    io::{self, BufRead},
+    ops::{Generator, GeneratorState}
+};
 
 use respectrum::tools;
 

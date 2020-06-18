@@ -1,4 +1,9 @@
-use super::BusLine;
+use std::rc::Rc;
+
+use super::{
+    BusLine,
+    clock::Clock,
+};
 
 /// Z80 CPU bus
 pub struct CpuBus {
@@ -17,12 +22,13 @@ pub struct CpuBus {
     pub reset: BusLine<bool>,
     pub busrq: BusLine<bool>,
     pub busak: BusLine<bool>,
+    pub clock: Rc<Clock>,
 }
 
 impl CpuBus {
 
     /// Create new CPU bus
-    pub fn new() -> CpuBus {
+    pub fn new(clock: Rc<Clock>) -> CpuBus {
         CpuBus {
             addr:  BusLine::new("addr"),
             data:  BusLine::new("data"),
@@ -39,6 +45,7 @@ impl CpuBus {
             reset: BusLine::new("reset"),
             busrq: BusLine::new("busrq"),
             busak: BusLine::new("busak"),
+            clock,
         }
     }
 

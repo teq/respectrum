@@ -4,7 +4,7 @@ use std::{
     ops::{Index, IndexMut}
 };
 
-use crate::bus::{Device, CpuBus, clock::Task};
+use crate::bus::{CpuBus, Device};
 
 const ROM_SIZE: usize = 0x4000;
 const RAM_SIZE: usize = 0xc000;

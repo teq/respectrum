@@ -19,12 +19,16 @@ impl<T: Copy> BusLine<T> {
     }
 
     /// Drive signal line expecting it is not taken (driven) by others or panic otherwise.
-    /// Returns a closure which releases a line when called
-    pub fn drive<'a>(&'a self, value: T) -> impl FnOnce() -> () + 'a {
+    pub fn drive(&self, value: T) {
         match self.state.get() {
             Some(_) => panic!("Bus line [{}] is already taken", self.name),
             None => self.state.set(Some(value)),
         }
+    }
+
+    /// Drive and release later using returned closure
+    pub fn drive_and_release<'a>(&'a self, value: T) -> impl FnOnce() -> () + 'a {
+        self.drive(value);
         move || self.state.set(None)
     }
 
@@ -43,7 +47,7 @@ mod tests {
     #[test]
     fn sample_returns_nothing_if_line_is_driven_and_then_released() {
         let line: BusLine<bool> = BusLine::new("test");
-        let release = line.drive(true);
+        let release = line.drive_and_release(true);
         release();
         assert_eq!(line.sample(), None);
     }
@@ -51,17 +55,17 @@ mod tests {
     #[test]
     fn sample_returns_line_state_if_line_is_driven() {
         let line: BusLine<bool> = BusLine::new("test");
-        let _ = line.drive(true);
+        line.drive(true);
         assert_eq!(line.sample(), Some(true));
     }
 
     #[test]
     fn drive_sets_a_new_line_state_if_line_already_released() {
         let line: BusLine<bool> = BusLine::new("test");
-        let release = line.drive(true);
+        let release = line.drive_and_release(true);
         assert_eq!(line.sample(), Some(true));
         release();
-        let _ = line.drive(false);
+        line.drive(false);
         assert_eq!(line.sample(), Some(false));
     }
 
@@ -69,8 +73,8 @@ mod tests {
     #[should_panic(expected = "Bus line [test] is already taken")]
     fn drive_panics_if_line_is_already_taken() {
         let line: BusLine<bool> = BusLine::new("test");
-        let _ = line.drive(true);
-        let _ = line.drive(false);
+        line.drive(true);
+        line.drive(false);
     }
 
 }

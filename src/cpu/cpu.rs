@@ -1,10 +1,19 @@
 use std::{
     rc::Rc,
+
+    pin::Pin,
+    ops::{Generator, GeneratorState},
+
 };
 
 use crate::{
     types::*,
-    bus::{Device, CpuBus, clock::Task},
+    bus::{
+        self,
+        CpuBus,
+        Device,
+        task::{Task, NoReturnTask}
+    },
 };
 
 #[derive(Default)]
@@ -26,14 +35,37 @@ pub struct Cpu {
     bus: Rc<CpuBus>,
 }
 
+// macro_rules! yield_task {
+//     ($operation: expr) => {
+//         loop {
+//             match Pin::new(&mut $operation).resume(()) {
+//                 GeneratorState::Yielded(some) => yield some,
+//                 GeneratorState::Complete(result) => break result
+//             }
+//         }
+//     }
+// }
+
+
 impl Device for Cpu {
 
-    fn run<'a>(&'a self) -> Box<dyn Task + 'a> {
+    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
+
         Box::new(move || {
+
+            let bus = &self.bus;
+
             loop {
-                yield self.bus.clock.rising(4);
+
+                // let byte = yield_task!(self.opcode_read());
+
+                yield 0;
+
+
             }
+
         })
+
     }
 
 }
@@ -50,6 +82,33 @@ impl Cpu {
             sp: Default::default(),
             pc: Default::default(),
             bus
+        }
+    }
+
+    /// Perform instruction opcode fetch operation
+    fn opcode_read<'a>(&'a self) -> impl Task<u8> + 'a {
+        let bus = &self.bus;
+        move || {
+            yield bus.clock.rising(1); // T1 rising
+            bus.addr.drive(self.pc.word());
+            bus.ctrl.drive(0);
+            bus.outs.drive(bus::M1);
+            yield bus.clock.falling(1); // T1 falling
+            bus.ctrl.drive(bus::MREQ | bus::RD);
+            yield bus.clock.falling(1); // T2 falling
+            while bus.wait.sample().unwrap_or(false) {
+                yield bus.clock.falling(1);
+            }
+            yield bus.clock.rising(2); // T3 rising
+            let byte = bus.data.sample().expect("Expecting data on a bus");
+            bus.addr.drive(0); // TODO: use R
+            bus.ctrl.drive(0);
+            bus.outs.drive(bus::RFSH);
+            yield bus.clock.falling(1); // T3 falling
+            bus.ctrl.drive(bus::MREQ);
+            yield bus.clock.falling(1); // T4 falling
+            bus.ctrl.drive(0);
+            byte
         }
     }
 

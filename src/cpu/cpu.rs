@@ -1,12 +1,7 @@
-use std::{
-    rc::Rc,
-
-    pin::Pin,
-    ops::{Generator, GeneratorState},
-
-};
+use std::rc::Rc;
 
 use crate::{
+    yield_task,
     types::*,
     bus::{
         self,
@@ -35,18 +30,6 @@ pub struct Cpu {
     bus: Rc<CpuBus>,
 }
 
-// macro_rules! yield_task {
-//     ($operation: expr) => {
-//         loop {
-//             match Pin::new(&mut $operation).resume(()) {
-//                 GeneratorState::Yielded(some) => yield some,
-//                 GeneratorState::Complete(result) => break result
-//             }
-//         }
-//     }
-// }
-
-
 impl Device for Cpu {
 
     fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
@@ -57,10 +40,9 @@ impl Device for Cpu {
 
             loop {
 
-                // let byte = yield_task!(self.opcode_read());
+                let byte = yield_task!(self.opcode_read());
 
-                yield 0;
-
+                // yield 0;
 
             }
 

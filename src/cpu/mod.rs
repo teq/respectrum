@@ -2,7 +2,7 @@ mod cpu;
 pub use cpu::Cpu;
 
 mod decoder;
-pub use decoder::decoder;
+pub use decoder::*;
 
 mod tokens;
 pub use tokens::*;

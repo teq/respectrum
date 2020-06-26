@@ -1,5 +1,7 @@
 # IDE settings and project files
 .vscode
+.vimrc.*
+tmux-*.log
 
 # Build artifacts
 /target

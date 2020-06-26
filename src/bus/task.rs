@@ -22,13 +22,11 @@ macro_rules! yield_task {
 }
 
 /// Generator which returns a value when it's completed
-/// and yields an offset in half t-cycles to the current clock
-/// if it needs to wake up later
+/// or yields next wake up time as an offset in half t-cycles to the current clock
 pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;
 
-/// Generator which never returns
-/// and yields an offset in half t-cycles to the current clock
-/// if it needs to wake up later
+/// Generator which never returns and yields next wake up time
+/// as an offset in half t-cycles to the current clock
 pub trait NoReturnTask = Task<!>;
 
 /// Clock-synced tasks scheduler

@@ -84,6 +84,16 @@ pub enum Token {
 
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum TokenType {
+    /// Actual opcode or opcode prefix
+    Opcode,
+    /// Offset (or displacement) byte
+    Offset,
+    /// Operand (immediate data) byte
+    Operand
+}
+
 /// Opcode operand value
 #[derive(Debug, Clone, Copy)]
 pub enum OperandValue {

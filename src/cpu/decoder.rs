@@ -3,12 +3,10 @@ use std::{
     ops::{Generator, GeneratorState},
 };
 
-use super::tokens::*;
-
-/// Merge high and low u8 bytes to a u16 word
-macro_rules! mkword {
-    ($high: expr, $low: expr) => { (($high as u16) << 8) | $low as u16 }
-}
+use crate::{
+    mkword,
+    cpu::tokens::*
+};
 
 fn get_x(byte: u8) -> u8 { (byte & 0b11000000) >> 6 }
 fn get_y(byte: u8) -> u8 { (byte & 0b00111000) >> 3 }

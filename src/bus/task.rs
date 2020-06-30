@@ -6,21 +6,6 @@ use std::{
 
 use super::Clock;
 
-#[macro_export]
-macro_rules! yield_task {
-    ($input: expr) => {
-        {
-            let mut task = $input;
-            loop {
-                match std::pin::Pin::new(&mut task).resume(()) {
-                    std::ops::GeneratorState::Yielded(some) => yield some,
-                    std::ops::GeneratorState::Complete(result) => break result
-                }
-            }
-        }
-    }
-}
-
 /// Generator which returns a value when it's completed
 /// or yields next wake up time as an offset in half t-cycles to the current clock
 pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;

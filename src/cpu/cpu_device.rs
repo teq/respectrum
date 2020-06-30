@@ -6,8 +6,9 @@ use std::{
 };
 
 use crate::{
+    mkword,
+    spword,
     yield_task,
-    types::*,
     bus::*,
     cpu::*,
 };
@@ -71,62 +72,65 @@ impl Device for CpuDevice {
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // end M3
                         let addr = self.state.idx_addr(dst, offset.unwrap());
-                        let value = *self.state.reg(src);
+                        let value = *self.state.rg(src);
                         yield_task!(self.memory_write(addr, value));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // end M3
                         let addr = self.state.idx_addr(src, offset.unwrap());
                         let value = yield_task!(self.memory_read(addr));
-                        *self.state.reg(dst) = value;
+                        *self.state.rg(dst) = value;
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
-                        let addr = *self.state.rpair(RegPair::HL);
-                        let value = *self.state.reg(src);
+                        let addr = *self.state.rp(RegPair::HL);
+                        let value = *self.state.rg(src);
                         yield_task!(self.memory_write(addr, value));
                     },
                     Token::LD_RG_RG(dst, Reg::AtHL) => {
-                        let addr = *self.state.rpair(RegPair::HL);
+                        let addr = *self.state.rp(RegPair::HL);
                         let value = yield_task!(self.memory_read(addr));
-                        *self.state.reg(dst) = value;
+                        *self.state.rg(dst) = value;
                     },
                     Token::LD_RG_RG(dst @ (Reg::I | Reg::R), Reg::A) => {
                         yield self.clock.rising(1);
-                        let value = *self.state.reg(Reg::A);
-                        *self.state.reg(dst) = value;
+                        let value = *self.state.rg(Reg::A);
+                        *self.state.rg(dst) = value;
                     },
                     Token::LD_RG_RG(Reg::A, src @ (Reg::I | Reg::R)) => {
                         yield self.clock.rising(1);
-                        let value = *self.state.reg(src);
-                        *self.state.reg(Reg::A) = value;
+                        let value = *self.state.rg(src);
+                        *self.state.rg(Reg::A) = value;
                     },
                     Token::LD_RG_RG(dst, src) => {
-                        let value = *self.state.reg(src);
-                        *self.state.reg(dst) = value;
+                        let value = *self.state.rg(src);
+                        *self.state.rg(dst) = value;
                     },
 
                     Token::LD_AtRP_A(rpair) => {
-                        let addr = *self.state.rpair(rpair);
-                        let value = *self.state.reg(Reg::A);
+                        let addr = *self.state.rp(rpair);
+                        let value = *self.state.rg(Reg::A);
                         yield_task!(self.memory_write(addr, value));
                     },
                     Token::LD_A_AtRP(rpair) => {
-                        let addr = *self.state.rpair(rpair);
+                        let addr = *self.state.rp(rpair);
                         let value = yield_task!(self.memory_read(addr));
-                        *self.state.reg(Reg::A) = value;
+                        *self.state.rg(Reg::A) = value;
                     },
 
                     Token::LD_MM_RP(rpair) => {
                         if let Some(OperandValue::Word(addr)) = operand {
-                            let value = *self.state.rpair(rpair);
-                            // yield_task!(self.memory_write(addr, value));
-                            // yield_task!(self.memory_write(addr + 1, value));
+                            let (hi, lo) = spword!(*self.state.rp(rpair));
+                            yield_task!(self.memory_write(addr, lo));
+                            yield_task!(self.memory_write(addr + 1, hi));
                         } else {
                             panic!("Expecting address operand");
                         }
                     },
                     Token::LD_RP_MM(rpair) => {
                         if let Some(OperandValue::Word(addr)) = operand {
+                            let lo = yield_task!(self.memory_read(addr));
+                            let hi = yield_task!(self.memory_read(addr + 1));
+                            *self.state.rp(rpair) = mkword!(hi, lo);
                         } else {
                             panic!("Expecting address operand");
                         }
@@ -182,7 +186,7 @@ impl CpuDevice {
             }
             yield self.clock.rising(1); // *** T3 rising ***
             let byte = self.bus.data.sample().expect("Expecting data on a bus");
-            self.bus.addr.drive(self.state.ir.w());
+            self.bus.addr.drive(*self.state.rp(RegPair::IR));
             self.bus.ctrl.drive(Ctls::NONE); // clear MREQ & RD
             self.bus.outs.drive(Outs::RFSH);
             yield self.clock.falling(1); // *** T3 falling ***
@@ -190,98 +194,90 @@ impl CpuDevice {
             yield self.clock.falling(1); // *** T4 falling ***
             self.bus.ctrl.drive(Ctls::NONE); // clear MREQ
             // Increment R (lower 7 bits)
-            let r = self.state.ir.lo();
-            self.state.ir.b.lo = ((r + 1) & 0x7f) | (r & 0x80);
+            let r = self.state.rg(Reg::R);
+            *r = ((*r + 1) & 0x7f) | (*r & 0x80);
             return byte;
         }
     }
 
     /// Memory read m-cycle. Takes 3 t-cycles.
     fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        let bus = &self.bus;
-        let clock = &self.clock;
         move || {
-            yield clock.rising(1); // T1 rising
-            bus.addr.drive(addr);
-            bus.ctrl.drive(Ctls::NONE);
-            bus.outs.drive(Outs::NONE);
-            yield clock.falling(1); // T1 falling
-            bus.ctrl.drive(Ctls::MREQ | Ctls::RD);
-            yield clock.falling(1); // T2 falling
-            while bus.wait.sample().unwrap_or(false) {
-                yield clock.falling(1); // wait 1 t-cycle
+            yield self.clock.rising(1); // T1 rising
+            self.bus.addr.drive(addr);
+            self.bus.ctrl.drive(Ctls::NONE);
+            self.bus.outs.drive(Outs::NONE);
+            yield self.clock.falling(1); // T1 falling
+            self.bus.ctrl.drive(Ctls::MREQ | Ctls::RD);
+            yield self.clock.falling(1); // T2 falling
+            while self.bus.wait.sample().unwrap_or(false) {
+                yield self.clock.falling(1); // wait 1 t-cycle
             }
-            yield clock.falling(1); // T3 falling
-            let byte = bus.data.sample().expect("Expecting data on a bus");
-            bus.ctrl.drive(Ctls::NONE);
+            yield self.clock.falling(1); // T3 falling
+            let byte = self.bus.data.sample().expect("Expecting data on a bus");
+            self.bus.ctrl.drive(Ctls::NONE);
             return byte;
         }
     }
 
     /// Memory write m-cycle.
     fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
-        let bus = &self.bus;
-        let clock = &self.clock;
         move || {
-            yield clock.rising(1); // T1 rising
-            bus.addr.drive(addr);
-            bus.ctrl.drive(Ctls::NONE);
-            bus.outs.drive(Outs::NONE);
-            yield clock.falling(1); // T1 falling
-            let release_data = bus.data.drive_and_release(val);
-            bus.ctrl.drive(Ctls::MREQ);
-            yield clock.falling(1); // T2 falling
-            bus.ctrl.drive(Ctls::MREQ | Ctls::WR);
-            while bus.wait.sample().unwrap_or(false) {
-                yield clock.falling(1); // wait 1 t-cycle
+            yield self.clock.rising(1); // T1 rising
+            self.bus.addr.drive(addr);
+            self.bus.ctrl.drive(Ctls::NONE);
+            self.bus.outs.drive(Outs::NONE);
+            yield self.clock.falling(1); // T1 falling
+            let release_data = self.bus.data.drive_and_release(val);
+            self.bus.ctrl.drive(Ctls::MREQ);
+            yield self.clock.falling(1); // T2 falling
+            self.bus.ctrl.drive(Ctls::MREQ | Ctls::WR);
+            while self.bus.wait.sample().unwrap_or(false) {
+                yield self.clock.falling(1); // wait 1 t-cycle
             }
-            yield clock.falling(1); // T3 falling
-            bus.ctrl.drive(Ctls::NONE);
+            yield self.clock.falling(1); // T3 falling
+            self.bus.ctrl.drive(Ctls::NONE);
             release_data();
         }
     }
 
     /// IO read m-cycle
     fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        let bus = &self.bus;
-        let clock = &self.clock;
         move || {
-            yield clock.rising(1); // T1 rising
-            bus.addr.drive(addr);
-            bus.ctrl.drive(Ctls::NONE);
-            bus.outs.drive(Outs::NONE);
-            yield clock.rising(1); // T2 rising
-            bus.ctrl.drive(Ctls::IORQ | Ctls::RD);
-            yield clock.falling(2); // TW falling
-            while bus.wait.sample().unwrap_or(false) {
-                yield clock.falling(1); // wait 1 t-cycle
+            yield self.clock.rising(1); // T1 rising
+            self.bus.addr.drive(addr);
+            self.bus.ctrl.drive(Ctls::NONE);
+            self.bus.outs.drive(Outs::NONE);
+            yield self.clock.rising(1); // T2 rising
+            self.bus.ctrl.drive(Ctls::IORQ | Ctls::RD);
+            yield self.clock.falling(2); // TW falling
+            while self.bus.wait.sample().unwrap_or(false) {
+                yield self.clock.falling(1); // wait 1 t-cycle
             }
-            yield clock.falling(1); // T3 falling
-            let byte = bus.data.sample().expect("Expecting data on a bus");
-            bus.ctrl.drive(Ctls::NONE);
+            yield self.clock.falling(1); // T3 falling
+            let byte = self.bus.data.sample().expect("Expecting data on a bus");
+            self.bus.ctrl.drive(Ctls::NONE);
             return byte;
         }
     }
 
     /// IO write m-cycle
     fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
-        let bus = &self.bus;
-        let clock = &self.clock;
         move || {
-            yield clock.rising(1); // T1 rising
-            bus.addr.drive(addr);
-            bus.ctrl.drive(Ctls::NONE);
-            bus.outs.drive(Outs::NONE);
-            yield clock.falling(1); // T1 falling
-            let release_data = bus.data.drive_and_release(val);
-            yield clock.rising(1); // T2 rising
-            bus.ctrl.drive(Ctls::IORQ | Ctls::WR);
-            yield clock.falling(2); // TW falling
-            while bus.wait.sample().unwrap_or(false) {
-                yield clock.falling(1); // wait 1 t-cycle
+            yield self.clock.rising(1); // T1 rising
+            self.bus.addr.drive(addr);
+            self.bus.ctrl.drive(Ctls::NONE);
+            self.bus.outs.drive(Outs::NONE);
+            yield self.clock.falling(1); // T1 falling
+            let release_data = self.bus.data.drive_and_release(val);
+            yield self.clock.rising(1); // T2 rising
+            self.bus.ctrl.drive(Ctls::IORQ | Ctls::WR);
+            yield self.clock.falling(2); // TW falling
+            while self.bus.wait.sample().unwrap_or(false) {
+                yield self.clock.falling(1); // wait 1 t-cycle
             }
-            yield clock.falling(1); // T3 falling
-            bus.ctrl.drive(Ctls::NONE);
+            yield self.clock.falling(1); // T3 falling
+            self.bus.ctrl.drive(Ctls::NONE);
             release_data();
         }
     }

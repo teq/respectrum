@@ -212,8 +212,8 @@ impl Formatter {
             Reg::L => String::from("L"),
             Reg::AtHL => String::from("(HL)"),
             Reg::A => String::from("A"),
-            Reg::R => String::from("R"),
             Reg::I => String::from("I"),
+            Reg::R => String::from("R"),
             Reg::IXH => String::from("IXH"),
             Reg::IXL => String::from("IXL"),
             Reg::IYH => String::from("IYH"),
@@ -226,6 +226,7 @@ impl Formatter {
                 let offset = inst.offset.unwrap() as i32;
                 format!("(IY{})", self.format_number_with_sign(offset))
             },
+            _ => unreachable!()
         }
     }
 

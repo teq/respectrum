@@ -104,7 +104,7 @@ pub enum OperandValue {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reg {
     B = 0, C, D, E, H, L, AtHL, A, // DO NOT reorder
-    I, R, IXH, IXL, IYH, IYL, AtIX, AtIY,
+    F, I, R, IXH, IXL, IYH, IYL, AtIX, AtIY,
 }
 
 impl From<u8> for Reg {
@@ -117,7 +117,7 @@ impl From<u8> for Reg {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum RegPair {
     BC = 0, DE, HL, SPorAF, // DO NOT reorder
-    SP, AF, IX, IY,
+    SP, AF, IR, IX, IY
 }
 
 impl From<u8> for RegPair {

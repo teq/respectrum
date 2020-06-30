@@ -1,4 +1,5 @@
 # IDE settings and project files
+.idea
 .vscode
 .vimrc.*
 tmux-*.log

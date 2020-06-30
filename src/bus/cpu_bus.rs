@@ -1,16 +1,24 @@
-use std::rc::Rc;
+use super::BusLine;
 
-use super::{BusLine, Clock};
+bitflags! {
+    pub struct Ctls : u8 {
+        const NONE = 0;
+        const MREQ = 1 << 0;
+        const IORQ = 1 << 1;
+        const RD   = 1 << 2;
+        const WR   = 1 << 3;
+    }
+}
 
-pub const MREQ:  u8 = 1 << 0;
-pub const IORQ:  u8 = 1 << 1;
-pub const RD:    u8 = 1 << 2;
-pub const WR:    u8 = 1 << 3;
-
-pub const M1:    u8 = 1 << 0;
-pub const RFSH:  u8 = 1 << 1;
-pub const HALT:  u8 = 1 << 2;
-pub const BUSAK: u8 = 1 << 3;
+bitflags! {
+    pub struct Outs : u8 {
+        const NONE  = 0;
+        const M1    = 1 << 0;
+        const RFSH  = 1 << 1;
+        const HALT  = 1 << 2;
+        const BUSAK = 1 << 3;
+    }
+}
 
 /// Z80 CPU bus
 pub struct CpuBus {
@@ -19,23 +27,21 @@ pub struct CpuBus {
     /// Data bus (tri-state in/outputs)
     pub data:  BusLine<u8>,
     /// Tri-state control outputs: MREQ, IORQ, RD, WR
-    pub ctrl:  BusLine<u8>,
+    pub ctrl:  BusLine<Ctls>,
     /// Control outputs: M1, RFSH, HALT, BUSAK
-    pub outs:  BusLine<u8>,
+    pub outs:  BusLine<Outs>,
 
     pub wait:  BusLine<bool>, // |
     pub int:   BusLine<bool>, // |
     pub nmi:   BusLine<bool>, // | inputs
     pub reset: BusLine<bool>, // |
     pub busrq: BusLine<bool>, // |
-
-    pub clock: Rc<Clock>,
 }
 
 impl CpuBus {
 
     /// Create new CPU bus instance
-    pub fn new(clock: Rc<Clock>) -> CpuBus {
+    pub fn new() -> CpuBus {
         CpuBus {
             addr:  BusLine::new("addr"),
             data:  BusLine::new("data"),
@@ -47,8 +53,6 @@ impl CpuBus {
             nmi:   BusLine::new("nmi"),
             reset: BusLine::new("reset"),
             busrq: BusLine::new("busrq"),
-
-            clock,
         }
     }
 

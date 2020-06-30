@@ -218,11 +218,11 @@ impl Formatter {
             Reg::IXL => String::from("IXL"),
             Reg::IYH => String::from("IYH"),
             Reg::IYL => String::from("IYL"),
-            Reg::AtIXd => {
+            Reg::AtIX => {
                 let offset = inst.offset.unwrap() as i32;
                 format!("(IX{})", self.format_number_with_sign(offset))
             },
-            Reg::AtIYd => {
+            Reg::AtIY => {
                 let offset = inst.offset.unwrap() as i32;
                 format!("(IY{})", self.format_number_with_sign(offset))
             },

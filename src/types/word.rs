@@ -3,37 +3,37 @@ use std::fmt;
 #[repr(C)]
 #[derive(Copy, Clone)]
 #[cfg(target_endian = "little")]
-struct WordBytes {
-    low: u8,
-    high: u8,
+pub struct WordBytes {
+    pub lo: u8,
+    pub hi: u8,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
 #[cfg(target_endian = "big")]
-struct WordBytes {
-    high: u8,
-    low: u8,
+pub struct WordBytes {
+    pub hi: u8,
+    pub lo: u8,
 }
 
 #[repr(C)]
 pub union Word {
-    word: u16,
-    bytes: WordBytes,
+    pub w: u16,
+    pub b: WordBytes,
 }
 
 impl Default for Word {
-    fn default() -> Self { Self { word: 0x0000 } }
+    fn default() -> Self { Self { w: 0 } }
 }
 
 impl Word {
-    #[inline] pub fn word(&self) -> u16 { unsafe { self.word       } }
-    #[inline] pub fn high(&self) -> u8  { unsafe { self.bytes.high } }
-    #[inline] pub fn low(&self)  -> u8  { unsafe { self.bytes.low  } }
+    pub fn w(&self)  -> u16 { unsafe { self.w    } }
+    pub fn hi(&self) -> u8  { unsafe { self.b.hi } }
+    pub fn lo(&self) -> u8  { unsafe { self.b.lo } }
 }
 
 impl fmt::Debug for Word {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_fmt(format_args!("0x{:04x}", unsafe { self.word }))
+        formatter.write_fmt(format_args!("{:04x}h", self.w()))
     }
 }

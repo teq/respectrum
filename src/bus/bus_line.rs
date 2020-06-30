@@ -2,7 +2,9 @@ use std::cell::Cell;
 
 /// Signal bus line
 pub struct BusLine<T: Copy> {
+    /// Line name
     name: &'static str,
+    /// Line state
     state: Cell<Option<T>>,
 }
 

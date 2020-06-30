@@ -56,13 +56,13 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 0xdd => match reg {
                     Reg::H => Reg::IXH,
                     Reg::L => Reg::IXL,
-                    Reg::AtHL => Reg::AtIXd,
+                    Reg::AtHL => Reg::AtIX,
                     _ => reg
                 },
                 0xfd => match reg {
                     Reg::H => Reg::IYH,
                     Reg::L => Reg::IYL,
-                    Reg::AtHL => Reg::AtIYd,
+                    Reg::AtHL => Reg::AtIY,
                     _ => reg
                 },
                 _ => reg

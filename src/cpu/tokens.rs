@@ -9,25 +9,44 @@ pub enum Token {
     Offset(i8),
     Operand(OperandValue),
 
-    // DD, FD, no prefix
-
-    NOP,
-    EX_AF,
-    DJNZ,
-    JR(Condition),
-    LD_RP_NN(RegPair),
-    ADD_RP_RP(RegPair, RegPair),
+    // Register, memory, IO instructions
+    LD_RG_RG(Reg, Reg),
     LD_AtRP_A(RegPair),
     LD_A_AtRP(RegPair),
     LD_MM_RP(RegPair),
     LD_RP_MM(RegPair),
     LD_MM_A,
     LD_A_MM,
-    INC_RP(RegPair),
-    DEC_RP(RegPair),
+    LD_SP_RP(RegPair),
+    LD_RG_N(Reg),
+    LD_RP_NN(RegPair),
+    OUT_N_A,
+    IN_A_N,
+    IN_RG_AtBC(Reg),
+    OUT_AtBC_RG(Reg),
+    IN_AtBC, // undocumented
+    OUT_AtBC_0, // undocumented
+
+    // Jumps/calls & stack
+    DJNZ,
+    RST(u8),
+    JP(Condition),
+    JP_RP(RegPair),
+    JR(Condition),
+    CALL(Condition),
+    RET(Condition),
+    POP(RegPair),
+    PUSH(RegPair),
+    EX_AtSP_RP(RegPair),
+    RETN,
+    RETI,
+
+    // Arithmentic, shifts, bit ops
+    ADD_RP_RP(RegPair, RegPair),
     INC_RG(Reg),
     DEC_RG(Reg),
-    LD_RG_N(Reg),
+    INC_RP(RegPair),
+    DEC_RP(RegPair),
     RLCA,
     RRCA,
     RLA,
@@ -36,51 +55,31 @@ pub enum Token {
     CPL,
     SCF,
     CCF,
-    RET(Condition),
-    POP(RegPair),
-    EXX,
-    JP_RP(RegPair),
-    LD_SP_RP(RegPair),
-    JP(Condition),
-    OUT_N_A,
-    IN_A_N,
-    EX_AtSP_RP(RegPair),
-    EX_DE_HL,
-    DI,
-    EI,
-    CALL(Condition),
-    PUSH(RegPair),
     ALU_N(AluOp),
-    RST(u8),
-    HALT,
-    LD_RG_RG(Reg, Reg),
     ALU_RG(AluOp, Reg),
-
-    // ED prefix
-
-    IN_RG_AtBC(Reg),
-    IN_AtBC,
-    OUT_AtBC_RG(Reg),
-    OUT_AtBC_0,
     SBC_HL_RP(RegPair),
     ADC_HL_RP(RegPair),
     NEG,
-    RETN,
-    RETI,
-    IM(IntMode),
     RRD,
     RLD,
-    BLOP(BlockOp),
-
-    // CB prefix
-
     SHOP(ShiftOp, Reg),
-    LDSH(Reg, ShiftOp, Reg),
+    LDSH(Reg, ShiftOp, Reg), // undocumented
     BIT(u8, Reg),
     RES(u8, Reg),
-    LDRES(Reg, u8, Reg),
+    LDRES(Reg, u8, Reg),  // undocumented
     SET(u8, Reg),
-    LDSET(Reg, u8, Reg),
+    LDSET(Reg, u8, Reg),  // undocumented
+
+    // Interrupts, misc
+    DI,
+    EI,
+    IM(IntMode),
+    EX_AF,
+    EXX,
+    EX_DE_HL,
+    NOP,
+    HALT,
+    BLOP(BlockOp),
 
 }
 
@@ -105,7 +104,7 @@ pub enum OperandValue {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reg {
     B = 0, C, D, E, H, L, AtHL, A, // DO NOT reorder
-    R, I, IXH, IXL, IYH, IYL, AtIXd, AtIYd,
+    I, R, IXH, IXL, IYH, IYL, AtIX, AtIY,
 }
 
 impl From<u8> for Reg {

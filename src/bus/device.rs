@@ -4,6 +4,6 @@ use super::task::NoReturnTask;
 pub trait Device {
 
     /// Create task to run on scheduler
-    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a>;
+    fn run<'a>(&'a mut self) -> Box<dyn NoReturnTask + 'a>;
 
 }

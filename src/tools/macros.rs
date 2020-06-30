@@ -16,7 +16,7 @@ macro_rules! spword {
     }
 }
 
-/// Allows task nesting
+/// Nest task into another
 #[macro_export]
 macro_rules! yield_task {
     ($input: expr) => {

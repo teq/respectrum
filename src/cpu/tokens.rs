@@ -20,6 +20,9 @@ pub enum Token {
     LD_SP_RP(RegPair),
     LD_RG_N(Reg),
     LD_RP_NN(RegPair),
+    EX_AF,
+    EXX,
+    EX_DE_HL,
     OUT_N_A,
     IN_A_N,
     IN_RG_AtBC(Reg),
@@ -38,8 +41,6 @@ pub enum Token {
     POP(RegPair),
     PUSH(RegPair),
     EX_AtSP_RP(RegPair),
-    RETN,
-    RETI,
 
     // Arithmentic, shifts, bit ops
     ADD_RP_RP(RegPair, RegPair),
@@ -71,14 +72,15 @@ pub enum Token {
     LDSET(Reg, u8, Reg),  // undocumented
 
     // Interrupts, misc
+    NOP,
+    HALT,
     DI,
     EI,
     IM(IntMode),
-    EX_AF,
-    EXX,
-    EX_DE_HL,
-    NOP,
-    HALT,
+    RETN,
+    RETI,
+
+    // Block instructions
     BLOP(BlockOp),
 
 }
@@ -117,7 +119,7 @@ impl From<u8> for Reg {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum RegPair {
     BC = 0, DE, HL, SPorAF, // DO NOT reorder
-    SP, AF, IR, IX, IY
+    SP, AF, PC, IR, IX, IY
 }
 
 impl From<u8> for RegPair {

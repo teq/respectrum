@@ -1,5 +1,5 @@
-mod cpu_device;
-pub use cpu_device::CpuDevice;
+mod cpu;
+pub use cpu::Cpu;
 
 mod cpu_state;
 pub use cpu_state::CpuState;

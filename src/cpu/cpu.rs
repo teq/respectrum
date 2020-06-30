@@ -1,7 +1,6 @@
 use std::{
     rc::Rc,
     pin::Pin,
-    cell::Cell,
     ops::{Generator, GeneratorState},
 };
 
@@ -13,50 +12,56 @@ use crate::{
     cpu::*,
 };
 
-/// Z80 CPU device
-pub struct CpuDevice {
+/// Z80 CPU
+pub struct Cpu {
     state: CpuState,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
 }
 
-impl Device for CpuDevice {
+impl Device for Cpu {
 
     fn run<'a>(&'a mut self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 
+            // Instruction loop
             loop {
 
                 let mut decoder = opcode_decoder();
                 let mut upnext = TokenType::Opcode;
                 let mut opcode: Option<Token> = None;
                 let mut offset: Option<i8> = None;
-                let mut operand: Option<OperandValue> = None;
+                let mut byte_operand: Option<u8> = None;
+                let mut word_operand: Option<u16> = None;
 
+                // Instruction decode loop
                 loop {
 
-                    let pc = self.state.next_pc();
+                    let state = {
 
-                    let byte = match upnext {
-                        TokenType::Opcode => yield_task!(self.opcode_read(pc)),
-                        TokenType::Offset | TokenType::Operand => yield_task!(self.memory_read(pc))
+                        let pc_ref = self.state.rp(RegPair::PC);
+                        let pc = *pc_ref; // read current PC
+                        *pc_ref += 1; // increment PC to the next memory location
+
+                        // Read next byte using appropriate M-cycle
+                        let byte: u8 = match upnext {
+                            TokenType::Opcode => yield_task!(self.opcode_read(pc)),
+                            TokenType::Offset | TokenType::Operand => yield_task!(self.memory_read(pc))
+                        };
+
+                        // Decode byte with opcode decoder
+                        Pin::new(&mut decoder).resume(byte)
+
                     };
 
-                    let state = Pin::new(&mut decoder).resume(byte);
-
                     match state {
-                        GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result {
-                            DecodeResult { upnext: next_upnext, .. } => upnext = next_upnext,
-                        }
-                    }
-
-                    match state {
-                        GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result {
-                            DecodeResult { token: Token::Prefix(_), .. } => (),
-                            DecodeResult { token: Token::Offset(value), .. } => offset = Some(value),
-                            DecodeResult { token: Token::Operand(value), .. } => operand = Some(value),
-                            DecodeResult { token, .. } => opcode = Some(token),
+                        GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result.token {
+                            Token::Prefix(_) => (),
+                            Token::Offset(value) => offset = Some(value),
+                            Token::Operand(OperandValue::Byte(value)) => byte_operand = Some(value),
+                            Token::Operand(OperandValue::Word(value)) => word_operand = Some(value),
+                            token => opcode = Some(token)
                         }
                     }
 
@@ -70,13 +75,13 @@ impl Device for CpuDevice {
 
                 match opcode.unwrap() {
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
-                        yield self.clock.rising(2); // end M3
+                        yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.state.idx_addr(dst, offset.unwrap());
                         let value = *self.state.rg(src);
                         yield_task!(self.memory_write(addr, value));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
-                        yield self.clock.rising(2); // end M3
+                        yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.state.idx_addr(src, offset.unwrap());
                         let value = yield_task!(self.memory_read(addr));
                         *self.state.rg(dst) = value;
@@ -92,12 +97,12 @@ impl Device for CpuDevice {
                         *self.state.rg(dst) = value;
                     },
                     Token::LD_RG_RG(dst @ (Reg::I | Reg::R), Reg::A) => {
-                        yield self.clock.rising(1);
+                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
                         let value = *self.state.rg(Reg::A);
                         *self.state.rg(dst) = value;
                     },
                     Token::LD_RG_RG(Reg::A, src @ (Reg::I | Reg::R)) => {
-                        yield self.clock.rising(1);
+                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
                         let value = *self.state.rg(src);
                         *self.state.rg(Reg::A) = value;
                     },
@@ -105,7 +110,6 @@ impl Device for CpuDevice {
                         let value = *self.state.rg(src);
                         *self.state.rg(dst) = value;
                     },
-
                     Token::LD_AtRP_A(rpair) => {
                         let addr = *self.state.rp(rpair);
                         let value = *self.state.rg(Reg::A);
@@ -116,31 +120,47 @@ impl Device for CpuDevice {
                         let value = yield_task!(self.memory_read(addr));
                         *self.state.rg(Reg::A) = value;
                     },
-
                     Token::LD_MM_RP(rpair) => {
-                        if let Some(OperandValue::Word(addr)) = operand {
-                            let (hi, lo) = spword!(*self.state.rp(rpair));
-                            yield_task!(self.memory_write(addr, lo));
-                            yield_task!(self.memory_write(addr + 1, hi));
-                        } else {
-                            panic!("Expecting address operand");
-                        }
+                        let addr = word_operand.unwrap();
+                        let (hi, lo) = spword!(*self.state.rp(rpair));
+                        yield_task!(self.memory_write(addr, lo));
+                        yield_task!(self.memory_write(addr + 1, hi));
                     },
                     Token::LD_RP_MM(rpair) => {
-                        if let Some(OperandValue::Word(addr)) = operand {
-                            let lo = yield_task!(self.memory_read(addr));
-                            let hi = yield_task!(self.memory_read(addr + 1));
-                            *self.state.rp(rpair) = mkword!(hi, lo);
-                        } else {
-                            panic!("Expecting address operand");
-                        }
+                        let addr = word_operand.unwrap();
+                        let lo = yield_task!(self.memory_read(addr));
+                        let hi = yield_task!(self.memory_read(addr + 1));
+                        *self.state.rp(rpair) = mkword!(hi, lo);
                     },
+                    Token::LD_MM_A => {
+                        let addr = word_operand.unwrap();
+                        let value = *self.state.rg(Reg::A);
+                        yield_task!(self.memory_write(addr, value));
+                    },
+                    Token::LD_A_MM => {
+                        let addr = word_operand.unwrap();
+                        let value = yield_task!(self.memory_read(addr));
+                        *self.state.rg(Reg::A) = value;
+                    },
+                    Token::LD_SP_RP(rpair) => {
+                        yield self.clock.rising(2); // complement M1 to 6 t-cycles
+                        let value = *self.state.rp(rpair);
+                        *self.state.rp(RegPair::SP) = value;
+                    },
+                    Token::LD_RG_N(reg @ Reg::AtHL) => {
+                        let addr = *self.state.rp(RegPair::HL);
+                        yield_task!(self.memory_write(addr, byte_operand.unwrap()));
+                    },
+                    Token::LD_RG_N(reg) => {
+                        *self.state.rg(reg) = byte_operand.unwrap();
+                    },
+                    Token::LD_RP_NN(rpair) => {
+                        *self.state.rp(rpair) = word_operand.unwrap();
+                    },
+                    Token::EX_AF => self.state.swap_af(),
+                    Token::EXX => self.state.swap_regfile(),
+                    Token::EX_DE_HL => self.state.swap_hlde(),
 
-                    Token::LD_MM_A => {},
-                    Token::LD_A_MM => {},
-                    Token::LD_SP_RP(rpair) => {},
-                    Token::LD_RG_N(reg) => {},
-                    Token::LD_RP_NN(rpair) => {},
                     Token::OUT_N_A => {},
                     Token::IN_A_N => {},
                     Token::IN_RG_AtBC(reg) => {},
@@ -160,7 +180,7 @@ impl Device for CpuDevice {
 
 }
 
-impl CpuDevice {
+impl Cpu {
 
     /// Create new CPU instance
     pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {

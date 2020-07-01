@@ -25,10 +25,10 @@ pub enum Token {
     EX_DE_HL,
     OUT_N_A,
     IN_A_N,
-    IN_RG_AtBC(Reg),
     OUT_AtBC_RG(Reg),
-    IN_AtBC, // undocumented
+    IN_RG_AtBC(Reg),
     OUT_AtBC_0, // undocumented
+    IN_AtBC, // undocumented
 
     // Jumps/calls & stack
     DJNZ,

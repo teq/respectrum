@@ -146,13 +146,30 @@ impl<'a> Device<'a> for Cpu<'a> {
                     Token::EX_AF => self.state.swap_af(),
                     Token::EXX => self.state.swap_regfile(),
                     Token::EX_DE_HL => self.state.swap_hlde(),
-
-                    Token::OUT_N_A => {},
-                    Token::IN_A_N => {},
-                    Token::IN_RG_AtBC(reg) => {},
-                    Token::OUT_AtBC_RG(reg) => {},
-                    Token::IN_AtBC => {}, // undocumented
-                    Token::OUT_AtBC_0 => {}, // undocumented
+                    Token::OUT_N_A => {
+                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
+                        yield_task!(self.io_write(addr, self.state.rg(Reg::A).get()));
+                    },
+                    Token::IN_A_N => {
+                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
+                        self.state.rg(Reg::A).set(yield_task!(self.io_read(addr)));
+                    },
+                    Token::OUT_AtBC_RG(reg) => {
+                        let addr = self.state.rp(RegPair::BC).get();
+                        yield_task!(self.io_write(addr, self.state.rg(reg).get()));
+                    },
+                    Token::IN_RG_AtBC(reg) => {
+                        let addr = self.state.rp(RegPair::BC).get();
+                        self.state.rg(reg).set(yield_task!(self.io_read(addr)));
+                    },
+                    Token::OUT_AtBC_0 => { // undocumented
+                        let addr = self.state.rp(RegPair::BC).get();
+                        yield_task!(self.io_write(addr, 0));
+                    },
+                    Token::IN_AtBC => { // undocumented
+                        let addr = self.state.rp(RegPair::BC).get();
+                        yield_task!(self.io_read(addr));
+                    },
 
                     _ => unreachable!()
 

@@ -2,6 +2,7 @@
 #![feature(or_patterns)]
 #![feature(never_type)]
 #![feature(trait_alias)]
+#![feature(untagged_unions)]
 
 #[macro_use]
 extern crate bitflags;

@@ -1,5 +1,4 @@
 use std::{
-    rc::Rc,
     pin::Pin,
     ops::{Generator, GeneratorState},
 };
@@ -13,15 +12,15 @@ use crate::{
 };
 
 /// Z80 CPU
-pub struct Cpu {
+pub struct Cpu<'a> {
     state: CpuState,
-    bus: Rc<CpuBus>,
-    clock: Rc<Clock>,
+    bus: &'a CpuBus,
+    clock: &'a Clock,
 }
 
-impl Device for Cpu {
+impl<'a> Device<'a> for Cpu<'a> {
 
-    fn run<'a>(&'a mut self) -> Box<dyn NoReturnTask + 'a> {
+    fn run(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 
@@ -40,9 +39,8 @@ impl Device for Cpu {
 
                     let state = {
 
-                        let pc_ref = self.state.rp(RegPair::PC);
-                        let pc = *pc_ref; // read current PC
-                        *pc_ref += 1; // increment PC to the next memory location
+                        let pc = self.state.rp(RegPair::PC).get(); // read current PC
+                        self.state.rp(RegPair::PC).set(pc + 1); // increment PC to the next memory location
 
                         // Read next byte using appropriate M-cycle
                         let byte: u8 = match upnext {
@@ -77,52 +75,43 @@ impl Device for Cpu {
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.state.idx_addr(dst, offset.unwrap());
-                        let value = *self.state.rg(src);
-                        yield_task!(self.memory_write(addr, value));
+                        yield_task!(self.memory_write(addr, self.state.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.state.idx_addr(src, offset.unwrap());
-                        let value = yield_task!(self.memory_read(addr));
-                        *self.state.rg(dst) = value;
+                        self.state.rg(dst).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
-                        let addr = *self.state.rp(RegPair::HL);
-                        let value = *self.state.rg(src);
-                        yield_task!(self.memory_write(addr, value));
+                        let addr = self.state.rp(RegPair::HL).get();
+                        yield_task!(self.memory_write(addr, self.state.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, Reg::AtHL) => {
-                        let addr = *self.state.rp(RegPair::HL);
-                        let value = yield_task!(self.memory_read(addr));
-                        *self.state.rg(dst) = value;
+                        let addr = self.state.rp(RegPair::HL).get();
+                        self.state.rg(dst).set(yield_task!(self.memory_read(addr)))
                     },
                     Token::LD_RG_RG(dst @ (Reg::I | Reg::R), Reg::A) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
-                        let value = *self.state.rg(Reg::A);
-                        *self.state.rg(dst) = value;
+                        self.state.rg(dst).set(self.state.rg(Reg::A).get());
                     },
                     Token::LD_RG_RG(Reg::A, src @ (Reg::I | Reg::R)) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
-                        let value = *self.state.rg(src);
-                        *self.state.rg(Reg::A) = value;
+                        self.state.rg(Reg::A).set(self.state.rg(src).get());
                     },
                     Token::LD_RG_RG(dst, src) => {
-                        let value = *self.state.rg(src);
-                        *self.state.rg(dst) = value;
+                        self.state.rg(dst).set(self.state.rg(src).get());
                     },
                     Token::LD_AtRP_A(rpair) => {
-                        let addr = *self.state.rp(rpair);
-                        let value = *self.state.rg(Reg::A);
-                        yield_task!(self.memory_write(addr, value));
+                        let addr = self.state.rp(rpair).get();
+                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
                     },
                     Token::LD_A_AtRP(rpair) => {
-                        let addr = *self.state.rp(rpair);
-                        let value = yield_task!(self.memory_read(addr));
-                        *self.state.rg(Reg::A) = value;
+                        let addr = self.state.rp(rpair).get();
+                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_MM_RP(rpair) => {
                         let addr = word_operand.unwrap();
-                        let (hi, lo) = spword!(*self.state.rp(rpair));
+                        let (hi, lo) = spword!(self.state.rp(rpair).get());
                         yield_task!(self.memory_write(addr, lo));
                         yield_task!(self.memory_write(addr + 1, hi));
                     },
@@ -130,32 +119,29 @@ impl Device for Cpu {
                         let addr = word_operand.unwrap();
                         let lo = yield_task!(self.memory_read(addr));
                         let hi = yield_task!(self.memory_read(addr + 1));
-                        *self.state.rp(rpair) = mkword!(hi, lo);
+                        self.state.rp(rpair).set(mkword!(hi, lo));
                     },
                     Token::LD_MM_A => {
                         let addr = word_operand.unwrap();
-                        let value = *self.state.rg(Reg::A);
-                        yield_task!(self.memory_write(addr, value));
+                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
                     },
                     Token::LD_A_MM => {
                         let addr = word_operand.unwrap();
-                        let value = yield_task!(self.memory_read(addr));
-                        *self.state.rg(Reg::A) = value;
+                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_SP_RP(rpair) => {
                         yield self.clock.rising(2); // complement M1 to 6 t-cycles
-                        let value = *self.state.rp(rpair);
-                        *self.state.rp(RegPair::SP) = value;
+                        self.state.rp(RegPair::SP).set(self.state.rp(rpair).get());
                     },
-                    Token::LD_RG_N(reg @ Reg::AtHL) => {
-                        let addr = *self.state.rp(RegPair::HL);
+                    Token::LD_RG_N(Reg::AtHL) => {
+                        let addr = self.state.rp(RegPair::HL).get();
                         yield_task!(self.memory_write(addr, byte_operand.unwrap()));
                     },
                     Token::LD_RG_N(reg) => {
-                        *self.state.rg(reg) = byte_operand.unwrap();
+                        self.state.rg(reg).set(byte_operand.unwrap());
                     },
                     Token::LD_RP_NN(rpair) => {
-                        *self.state.rp(rpair) = word_operand.unwrap();
+                        self.state.rp(rpair).set(word_operand.unwrap());
                     },
                     Token::EX_AF => self.state.swap_af(),
                     Token::EXX => self.state.swap_regfile(),
@@ -180,19 +166,11 @@ impl Device for Cpu {
 
 }
 
-impl Cpu {
-
-    /// Create new CPU instance
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self {
-            state: Default::default(),
-            bus, clock
-        }
-    }
+impl<'a> Cpu<'a> {
 
     /// Instruction opcode fetch m-cycle
     /// (usually referred to as M1). Takes 4 t-cycles.
-    fn opcode_read<'a>(&'a mut self, addr: u16) -> impl Task<u8> + 'a {
+    fn opcode_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // *** T1 rising ***
             self.bus.addr.drive(addr);
@@ -206,7 +184,7 @@ impl Cpu {
             }
             yield self.clock.rising(1); // *** T3 rising ***
             let byte = self.bus.data.sample().expect("Expecting data on a bus");
-            self.bus.addr.drive(*self.state.rp(RegPair::IR));
+            self.bus.addr.drive(self.state.rp(RegPair::IR).get());
             self.bus.ctrl.drive(Ctls::NONE); // clear MREQ & RD
             self.bus.outs.drive(Outs::RFSH);
             yield self.clock.falling(1); // *** T3 falling ***
@@ -214,14 +192,14 @@ impl Cpu {
             yield self.clock.falling(1); // *** T4 falling ***
             self.bus.ctrl.drive(Ctls::NONE); // clear MREQ
             // Increment R (lower 7 bits)
-            let r = self.state.rg(Reg::R);
-            *r = ((*r + 1) & 0x7f) | (*r & 0x80);
+            let r = self.state.rg(Reg::R).get();
+            self.state.rg(Reg::R).set(((r + 1) & 0x7f) | (r & 0x80));
             return byte;
         }
     }
 
     /// Memory read m-cycle. Takes 3 t-cycles.
-    fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
+    fn memory_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -241,7 +219,7 @@ impl Cpu {
     }
 
     /// Memory write m-cycle.
-    fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
+    fn memory_write(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -262,7 +240,7 @@ impl Cpu {
     }
 
     /// IO read m-cycle
-    fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
+    fn io_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -282,7 +260,7 @@ impl Cpu {
     }
 
     /// IO write m-cycle
-    fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
+    fn io_write(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);

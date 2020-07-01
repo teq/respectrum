@@ -1,9 +1,9 @@
 use super::task::NoReturnTask;
 
 /// Generic bus device
-pub trait Device {
+pub trait Device<'a> {
 
     /// Create task to run on scheduler
-    fn run<'a>(&'a mut self) -> Box<dyn NoReturnTask + 'a>;
+    fn run(&'a self) -> Box<dyn NoReturnTask + 'a>;
 
 }

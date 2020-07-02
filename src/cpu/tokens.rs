@@ -30,18 +30,6 @@ pub enum Token {
     OUT_AtBC_0, // undocumented
     IN_AtBC, // undocumented
 
-    // Jumps/calls & stack
-    DJNZ,
-    RST(u8),
-    JP(Condition),
-    JP_RP(RegPair),
-    JR(Condition),
-    CALL(Condition),
-    RET(Condition),
-    POP(RegPair),
-    PUSH(RegPair),
-    EX_AtSP_RP(RegPair),
-
     // Arithmentic, shifts, bit ops
     ADD_RP_RP(RegPair, RegPair),
     INC_RG(Reg),
@@ -70,6 +58,18 @@ pub enum Token {
     LDRES(Reg, u8, Reg),  // undocumented
     SET(u8, Reg),
     LDSET(Reg, u8, Reg),  // undocumented
+
+    // Jumps/calls & stack
+    DJNZ,
+    RST(u8),
+    JP(Condition),
+    JP_RP(RegPair),
+    JR(Condition),
+    CALL(Condition),
+    RET(Condition),
+    POP(RegPair),
+    PUSH(RegPair),
+    EX_AtSP_RP(RegPair),
 
     // Interrupts, misc
     NOP,
@@ -100,6 +100,35 @@ pub enum TokenType {
 pub enum OperandValue {
     Byte(u8),
     Word(u16)
+}
+
+bitflags! {
+    /// CPU flags
+    pub struct Flags : u8 {
+        const NONE = 0;
+        /// Carry flag
+        const C = 1 << 0;
+        /// Add / Subtract flag
+        const N = 1 << 1;
+        /// Parity / Overflow flag
+        const P = 1 << 2;
+        /// A copy of bit 3 of the result
+        const X = 1 << 3;
+        /// Half Carry flag
+        const H = 1 << 4;
+        /// A copy of bit 5 of the result
+        const Y = 1 << 5;
+        /// Zero flag
+        const Z = 1 << 6;
+        /// Sign flag
+        const S = 1 << 7;
+    }
+}
+
+impl From<u8> for Flags {
+    fn from(flags: u8) -> Self {
+        unsafe { std::mem::transmute(flags) }
+    }
 }
 
 /// 8-bit register

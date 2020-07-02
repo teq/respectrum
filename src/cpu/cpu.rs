@@ -72,6 +72,9 @@ impl<'a> Device<'a> for Cpu<'a> {
                 }
 
                 match opcode.unwrap() {
+
+                    // Register, memory, IO instructions
+
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.state.idx_addr(dst, offset.unwrap());
@@ -170,6 +173,49 @@ impl<'a> Device<'a> for Cpu<'a> {
                         let addr = self.state.rp(RegPair::BC).get();
                         yield_task!(self.io_read(addr));
                     },
+
+                    // Arithmentic, shifts, bit ops
+
+                    Token::ADD_RP_RP(dst, src) => {},
+                    Token::INC_RG(reg) => {},
+                    Token::DEC_RG(reg) => {},
+                    Token::INC_RP(rpair) => {},
+                    Token::DEC_RP(rpair) => {},
+                    Token::RLCA => {},
+                    Token::RRCA => {},
+                    Token::RLA => {},
+                    Token::RRA => {},
+                    Token::DAA => {},
+                    Token::CPL => {},
+                    Token::SCF => {},
+                    Token::CCF => {},
+                    Token::ALU_N(op) => {},
+                    Token::ALU_RG(op, reg) => {},
+                    Token::SBC_HL_RP(rpair) => {},
+                    Token::ADC_HL_RP(rpair) => {},
+                    Token::NEG => {},
+                    Token::RRD => {},
+                    Token::RLD => {},
+                    Token::SHOP(op, reg) => {},
+                    Token::LDSH(dst, op, src) => {}, // undocumented
+                    Token::BIT(bit, reg) => {},
+                    Token::RES(bit, reg) => {},
+                    Token::LDRES(dst, bit, src) => {},  // undocumented
+                    Token::SET(bit, reg) => {},
+                    Token::LDSET(dst, bit, src) => {},  // undocumented
+
+                    // Jumps/calls & stack
+
+                    Token::DJNZ => {},
+                    Token::RST(n) => {},
+                    Token::JP(cond) => {},
+                    Token::JP_RP(rpair) => {},
+                    Token::JR(cond) => {},
+                    Token::CALL(cond) => {},
+                    Token::RET(cond) => {},
+                    Token::POP(rpair) => {},
+                    Token::PUSH(rpair) => {},
+                    Token::EX_AtSP_RP(rpair) => {},
 
                     _ => unreachable!()
 

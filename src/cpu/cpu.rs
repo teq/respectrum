@@ -73,7 +73,7 @@ impl<'a> Device<'a> for Cpu<'a> {
 
                 match opcode.unwrap() {
 
-                    // Register, memory, IO instructions
+                    // 8-bit Load
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
@@ -104,38 +104,6 @@ impl<'a> Device<'a> for Cpu<'a> {
                     Token::LD_RG_RG(dst, src) => {
                         self.state.rg(dst).set(self.state.rg(src).get());
                     },
-                    Token::LD_AtRP_A(rpair) => {
-                        let addr = self.state.rp(rpair).get();
-                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
-                    },
-                    Token::LD_A_AtRP(rpair) => {
-                        let addr = self.state.rp(rpair).get();
-                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
-                    },
-                    Token::LD_MM_RP(rpair) => {
-                        let addr = word_operand.unwrap();
-                        let (hi, lo) = spword!(self.state.rp(rpair).get());
-                        yield_task!(self.memory_write(addr, lo));
-                        yield_task!(self.memory_write(addr + 1, hi));
-                    },
-                    Token::LD_RP_MM(rpair) => {
-                        let addr = word_operand.unwrap();
-                        let lo = yield_task!(self.memory_read(addr));
-                        let hi = yield_task!(self.memory_read(addr + 1));
-                        self.state.rp(rpair).set(mkword!(hi, lo));
-                    },
-                    Token::LD_MM_A => {
-                        let addr = word_operand.unwrap();
-                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
-                    },
-                    Token::LD_A_MM => {
-                        let addr = word_operand.unwrap();
-                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
-                    },
-                    Token::LD_SP_RP(rpair) => {
-                        yield self.clock.rising(2); // complement M1 to 6 t-cycles
-                        self.state.rp(RegPair::SP).set(self.state.rp(rpair).get());
-                    },
                     Token::LD_RG_N(Reg::AtHL) => {
                         let addr = self.state.rp(RegPair::HL).get();
                         yield_task!(self.memory_write(addr, byte_operand.unwrap()));
@@ -143,81 +111,239 @@ impl<'a> Device<'a> for Cpu<'a> {
                     Token::LD_RG_N(reg) => {
                         self.state.rg(reg).set(byte_operand.unwrap());
                     },
+                    Token::LD_A_AtRP(rpair) => {
+                        let addr = self.state.rp(rpair).get();
+                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
+                    },
+                    Token::LD_AtRP_A(rpair) => {
+                        let addr = self.state.rp(rpair).get();
+                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
+                    },
+                    Token::LD_A_MM => {
+                        let addr = word_operand.unwrap();
+                        self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
+                    },
+                    Token::LD_MM_A => {
+                        let addr = word_operand.unwrap();
+                        yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
+                    },
+
+                    // 16-bit Load
+
                     Token::LD_RP_NN(rpair) => {
                         self.state.rp(rpair).set(word_operand.unwrap());
                     },
+                    Token::LD_RP_MM(rpair) => {
+                        let addr = word_operand.unwrap();
+                        let lo = yield_task!(self.memory_read(addr));
+                        let hi = yield_task!(self.memory_read(addr + 1));
+                        self.state.rp(rpair).set(mkword!(hi, lo));
+                    },
+                    Token::LD_MM_RP(rpair) => {
+                        let addr = word_operand.unwrap();
+                        let (hi, lo) = spword!(self.state.rp(rpair).get());
+                        yield_task!(self.memory_write(addr, lo));
+                        yield_task!(self.memory_write(addr + 1, hi));
+                    },
+                    Token::LD_SP_RP(rpair) => {
+                        yield self.clock.rising(2); // complement M1 to 6 t-cycles
+                        self.state.rp(RegPair::SP).set(self.state.rp(rpair).get());
+                    },
+                    Token::POP(rpair) => {
+                        unimplemented!();
+                    },
+                    Token::PUSH(rpair) => {
+                        unimplemented!();
+                    },
+
+                    // Exchange
+
+                    Token::EX_DE_HL => self.state.swap_hlde(),
                     Token::EX_AF => self.state.swap_af(),
                     Token::EXX => self.state.swap_regfile(),
-                    Token::EX_DE_HL => self.state.swap_hlde(),
-                    Token::OUT_N_A => {
-                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
-                        yield_task!(self.io_write(addr, self.state.rg(Reg::A).get()));
+                    Token::EX_AtSP_RP(rpair) => {
+                        unimplemented!();
                     },
+
+                    // 8-bit arithmetic and logic
+
+                    Token::ALU_N(op) => {
+                        unimplemented!();
+                    },
+                    Token::ALU_RG(op, reg) => {
+                        unimplemented!();
+                    },
+                    Token::INC_RG(reg) => {
+                        unimplemented!();
+                    },
+                    Token::DEC_RG(reg) => {
+                        unimplemented!();
+                    },
+
+                    // General-Purpose Arithmetic and CPU Control
+
+                    Token::DAA => {
+                        unimplemented!();
+                    },
+                    Token::CPL => {
+                        unimplemented!();
+                    },
+                    Token::NEG => {
+                        unimplemented!();
+                    },
+                    Token::CCF => {
+                        unimplemented!();
+                    },
+                    Token::SCF => {
+                        unimplemented!();
+                    },
+                    Token::NOP => {
+                        unimplemented!();
+                    },
+                    Token::HALT => {
+                        unimplemented!();
+                    },
+                    Token::DI => {
+                        unimplemented!();
+                    },
+                    Token::EI => {
+                        unimplemented!();
+                    },
+                    Token::IM(mode) => {
+                        unimplemented!();
+                    },
+
+                    // 16-Bit Arithmetic
+
+                    Token::ADD_RP_RP(dst, src) => {
+                        unimplemented!();
+                    },
+                    Token::ADC_HL_RP(rpair) => {
+                        unimplemented!();
+                    },
+                    Token::SBC_HL_RP(rpair) => {
+                        unimplemented!();
+                    },
+                    Token::INC_RP(rpair) => {
+                        unimplemented!();
+                    },
+                    Token::DEC_RP(rpair) => {
+                        unimplemented!();
+                    },
+
+                    // Rotate and Shift
+
+                    Token::RLCA => {
+                        unimplemented!();
+                    },
+                    Token::RLA => {
+                        unimplemented!();
+                    },
+                    Token::RRCA => {
+                        unimplemented!();
+                    },
+                    Token::RRA => {
+                        unimplemented!();
+                    },
+                    Token::SHOP(op, reg) => {
+                        unimplemented!();
+                    },
+                    Token::RLD => {
+                        unimplemented!();
+                    },
+                    Token::RRD => {
+                        unimplemented!();
+                    },
+                    Token::LDSH(dst, op, src) => {
+                        unimplemented!();
+                    },
+
+                    // Bit Set, Reset and Test
+
+                    Token::BIT(bit, reg) => {
+                        unimplemented!();
+                    },
+                    Token::SET(bit, reg) => {
+                        unimplemented!();
+                    },
+                    Token::LDSET(dst, bit, src) => {
+                        unimplemented!();
+                    },
+                    Token::RES(bit, reg) => {
+                        unimplemented!();
+                    },
+                    Token::LDRES(dst, bit, src) => {
+                        unimplemented!();
+                    },
+
+                    // Jump, Call and Return
+
+                    Token::JP(cond) => {
+                        unimplemented!();
+                    },
+                    Token::JP_RP(rpair) => {
+                        unimplemented!();
+                    },
+                    Token::JR(cond) => {
+                        unimplemented!();
+                    },
+                    Token::DJNZ => {
+                        unimplemented!();
+                    },
+                    Token::CALL(cond) => {
+                        unimplemented!();
+                    },
+                    Token::RET(cond) => {
+                        unimplemented!();
+                    },
+                    Token::RETI => {
+                        unimplemented!();
+                    },
+                    Token::RETN => {
+                        unimplemented!();
+                    },
+                    Token::RST(n) => {
+                        unimplemented!();
+                    },
+
+                    // IO
+
                     Token::IN_A_N => {
                         let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
                         self.state.rg(Reg::A).set(yield_task!(self.io_read(addr)));
                     },
-                    Token::OUT_AtBC_RG(reg) => {
-                        let addr = self.state.rp(RegPair::BC).get();
-                        yield_task!(self.io_write(addr, self.state.rg(reg).get()));
+                    Token::OUT_N_A => {
+                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
+                        yield_task!(self.io_write(addr, self.state.rg(Reg::A).get()));
                     },
                     Token::IN_RG_AtBC(reg) => {
                         let addr = self.state.rp(RegPair::BC).get();
                         self.state.rg(reg).set(yield_task!(self.io_read(addr)));
                     },
-                    Token::OUT_AtBC_0 => { // undocumented
+                    Token::OUT_AtBC_RG(reg) => {
                         let addr = self.state.rp(RegPair::BC).get();
-                        yield_task!(self.io_write(addr, 0));
+                        yield_task!(self.io_write(addr, self.state.rg(reg).get()));
                     },
-                    Token::IN_AtBC => { // undocumented
+                    Token::IN_AtBC => {
                         let addr = self.state.rp(RegPair::BC).get();
                         yield_task!(self.io_read(addr));
                     },
+                    Token::OUT_AtBC_0 => {
+                        let addr = self.state.rp(RegPair::BC).get();
+                        yield_task!(self.io_write(addr, 0));
+                    },
 
-                    // Arithmentic, shifts, bit ops
+                    // Block transfer, search and IO
 
-                    Token::ADD_RP_RP(dst, src) => {},
-                    Token::INC_RG(reg) => {},
-                    Token::DEC_RG(reg) => {},
-                    Token::INC_RP(rpair) => {},
-                    Token::DEC_RP(rpair) => {},
-                    Token::RLCA => {},
-                    Token::RRCA => {},
-                    Token::RLA => {},
-                    Token::RRA => {},
-                    Token::DAA => {},
-                    Token::CPL => {},
-                    Token::SCF => {},
-                    Token::CCF => {},
-                    Token::ALU_N(op) => {},
-                    Token::ALU_RG(op, reg) => {},
-                    Token::SBC_HL_RP(rpair) => {},
-                    Token::ADC_HL_RP(rpair) => {},
-                    Token::NEG => {},
-                    Token::RRD => {},
-                    Token::RLD => {},
-                    Token::SHOP(op, reg) => {},
-                    Token::LDSH(dst, op, src) => {}, // undocumented
-                    Token::BIT(bit, reg) => {},
-                    Token::RES(bit, reg) => {},
-                    Token::LDRES(dst, bit, src) => {},  // undocumented
-                    Token::SET(bit, reg) => {},
-                    Token::LDSET(dst, bit, src) => {},  // undocumented
+                    Token::BLOP(op) => {
+                        unimplemented!();
+                    },
 
-                    // Jumps/calls & stack
+                    // Non-opcode is not expected
 
-                    Token::DJNZ => {},
-                    Token::RST(n) => {},
-                    Token::JP(cond) => {},
-                    Token::JP_RP(rpair) => {},
-                    Token::JR(cond) => {},
-                    Token::CALL(cond) => {},
-                    Token::RET(cond) => {},
-                    Token::POP(rpair) => {},
-                    Token::PUSH(rpair) => {},
-                    Token::EX_AtSP_RP(rpair) => {},
-
-                    _ => unreachable!()
+                    Token::Prefix(_) | Token::Offset(_) | Token::Operand(_) => {
+                        unreachable!();
+                    }
 
                 }
 

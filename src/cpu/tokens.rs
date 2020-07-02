@@ -5,82 +5,95 @@
 #[derive(Debug, Clone, Copy)]
 pub enum Token {
 
+    // Non-opcode tokens
     Prefix(u16),
     Offset(i8),
     Operand(OperandValue),
 
-    // Register, memory, IO instructions
+    // 8-bit Load
     LD_RG_RG(Reg, Reg),
-    LD_AtRP_A(RegPair),
-    LD_A_AtRP(RegPair),
-    LD_MM_RP(RegPair),
-    LD_RP_MM(RegPair),
-    LD_MM_A,
-    LD_A_MM,
-    LD_SP_RP(RegPair),
     LD_RG_N(Reg),
+    LD_A_AtRP(RegPair),
+    LD_AtRP_A(RegPair),
+    LD_A_MM,
+    LD_MM_A,
+
+    // 16-bit Load
     LD_RP_NN(RegPair),
-    EX_AF,
-    EXX,
-    EX_DE_HL,
-    OUT_N_A,
-    IN_A_N,
-    OUT_AtBC_RG(Reg),
-    IN_RG_AtBC(Reg),
-    OUT_AtBC_0, // undocumented
-    IN_AtBC, // undocumented
-
-    // Arithmentic, shifts, bit ops
-    ADD_RP_RP(RegPair, RegPair),
-    INC_RG(Reg),
-    DEC_RG(Reg),
-    INC_RP(RegPair),
-    DEC_RP(RegPair),
-    RLCA,
-    RRCA,
-    RLA,
-    RRA,
-    DAA,
-    CPL,
-    SCF,
-    CCF,
-    ALU_N(AluOp),
-    ALU_RG(AluOp, Reg),
-    SBC_HL_RP(RegPair),
-    ADC_HL_RP(RegPair),
-    NEG,
-    RRD,
-    RLD,
-    SHOP(ShiftOp, Reg),
-    LDSH(Reg, ShiftOp, Reg), // undocumented
-    BIT(u8, Reg),
-    RES(u8, Reg),
-    LDRES(Reg, u8, Reg),  // undocumented
-    SET(u8, Reg),
-    LDSET(Reg, u8, Reg),  // undocumented
-
-    // Jumps/calls & stack
-    DJNZ,
-    RST(u8),
-    JP(Condition),
-    JP_RP(RegPair),
-    JR(Condition),
-    CALL(Condition),
-    RET(Condition),
+    LD_RP_MM(RegPair),
+    LD_MM_RP(RegPair),
+    LD_SP_RP(RegPair),
     POP(RegPair),
     PUSH(RegPair),
+
+    // Exchange
+    EX_DE_HL,
+    EX_AF,
+    EXX,
     EX_AtSP_RP(RegPair),
 
-    // Interrupts, misc
+    // 8-bit arithmetic and logic
+    ALU_N(AluOp),
+    ALU_RG(AluOp, Reg),
+    INC_RG(Reg),
+    DEC_RG(Reg),
+
+    // General-Purpose Arithmetic and CPU Control
+    DAA,
+    CPL,
+    NEG,
+    CCF,
+    SCF,
     NOP,
     HALT,
     DI,
     EI,
     IM(IntMode),
-    RETN,
-    RETI,
 
-    // Block instructions
+    // 16-Bit Arithmetic
+    ADD_RP_RP(RegPair, RegPair),
+    ADC_HL_RP(RegPair),
+    SBC_HL_RP(RegPair),
+    INC_RP(RegPair),
+    DEC_RP(RegPair),
+
+    // Rotate and Shift
+    RLCA,
+    RLA,
+    RRCA,
+    RRA,
+    SHOP(ShiftOp, Reg),
+    RLD,
+    RRD,
+    LDSH(Reg, ShiftOp, Reg), // undocumented
+
+    // Bit Set, Reset and Test
+    BIT(u8, Reg),
+    SET(u8, Reg),
+    LDSET(Reg, u8, Reg),  // undocumented
+    RES(u8, Reg),
+    LDRES(Reg, u8, Reg),  // undocumented
+
+    // Jump, Call and Return
+    JP(Condition),
+    JP_RP(RegPair),
+    JR(Condition),
+    DJNZ,
+    CALL(Condition),
+    RET(Condition),
+    RETI,
+    RETN,
+    RST(u8),
+
+    // IO
+    IN_A_N,
+    OUT_N_A,
+    IN_RG_AtBC(Reg),
+    OUT_AtBC_RG(Reg),
+    IN_AtBC, // undocumented
+    OUT_AtBC_0, // undocumented
+
+    // Block transfer, search and IO
     BLOP(BlockOp),
 
 }

@@ -98,6 +98,44 @@ pub enum Token {
 
 }
 
+/// CPU M-cycle type
+pub enum MCycle {
+    /// Internal CPU Operation
+    IOP,
+    /// Opcode Fetch (aka M1)
+    OCF,
+    /// Memory Read
+    MR,
+    /// Memory Read of High Byte
+    MRH,
+    /// Memory Read of Low Byte
+    MRL,
+    /// Memory Write
+    MW,
+    /// Memory Write of High Byte
+    MWH,
+    /// Memory Write of Low Byte
+    MWL,
+    /// Operand Data Read
+    OD,
+    /// Operand Data Read of High Byte
+    ODH,
+    /// Operand Data Read of Low Byte
+    ODL,
+    /// Port Read
+    PR,
+    /// Port Write
+    PW,
+    /// Stack Read of High Byte
+    SRH,
+    /// Stack Read of Low Byte
+    SRL,
+    /// Stack Write of High Byte
+    SWH,
+    /// Stack Write of Low Byte
+    SWL,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     /// Actual opcode or opcode prefix

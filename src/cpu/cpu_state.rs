@@ -18,8 +18,8 @@ pub struct CpuState {
     sp: Word,
     pc: Word,
     ir: Word,
-    iff1: bool,
-    iff2: bool,
+    pub iff1: bool,
+    pub iff2: bool,
     im: u8,
 }
 

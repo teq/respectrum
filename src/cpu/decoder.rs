@@ -5,8 +5,115 @@ use std::{
 
 use crate::{
     mkword,
-    cpu::tokens::*
+    cpu::tokens::*,
 };
+
+/// Z80 CPU instruction decoder
+pub struct InstructionDecoder {
+    byte_decoder: Box<dyn Generator<u8, Yield=ByteDecodeResult, Return=ByteDecodeResult> + Unpin>,
+    upnext: TokenType,
+    opcode: Option<Token>,
+    offset: Option<i8>,
+    operand: Option<OperandValue>,
+}
+
+impl InstructionDecoder {
+
+    /// Create new instruction decoder
+    pub fn new() -> Self {
+        Self {
+            byte_decoder: Box::new(byte_decoder()),
+            upnext: TokenType::Opcode,
+            opcode: None,
+            offset: None,
+            operand: None,
+        }
+    }
+
+    /// Expected type for the next token. It allows to decide
+    /// which M-cycle to use to process next byte
+    pub fn upnext(&self) -> TokenType {
+        self.upnext
+    }
+
+    /// Instruction opcode
+    pub fn opcode(&self) -> Option<Token> {
+        self.opcode
+    }
+
+    /// Expect instruction opcode to be defined
+    pub fn expect_opcode(&self) -> Token {
+        self.opcode.expect("Expecting opcode to be defined")
+    }
+
+    /// Offset (displacement) value
+    pub fn offset(&self) -> Option<i8> {
+        self.offset
+    }
+
+    /// Expect offset (displacement) value to be defined
+    pub fn expect_offset(&self) -> i8 {
+        self.offset.expect("Expecting offset to be defined")
+    }
+
+    /// Operand value
+    pub fn operand(&self) -> Option<OperandValue> {
+        self.operand
+    }
+
+    /// Expect byte operand value
+    pub fn expect_byte_operand(&self) -> u8 {
+        match self.operand {
+            Some(OperandValue::Byte(value)) => value,
+            _ => panic!("Expecting byte operand")
+        }
+    }
+
+    /// Expect word operand value
+    pub fn expect_word_operand(&self) -> u16 {
+        match self.operand {
+            Some(OperandValue::Word(value)) => value,
+            _ => panic!("Expecting word operand")
+        }
+    }
+
+    /// Process next byte. Returns false when instruction is decoded
+    pub fn decode(&mut self, byte: u8) -> bool {
+
+        let state = Pin::new(&mut self.byte_decoder).resume(byte);
+
+        match state {
+            GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result.token {
+                Token::Prefix(_) => (),
+                Token::Offset(value) => self.offset = Some(value),
+                Token::Operand(value) => self.operand = Some(value),
+                token => self.opcode = Some(token)
+            }
+        }
+
+        return match state {
+            GeneratorState::Yielded(ByteDecodeResult { upnext, .. }) => {
+                self.upnext = upnext;
+                true
+            },
+            GeneratorState::Complete(_) => {
+                self.upnext = TokenType::Opcode;
+                false
+            }
+        }
+
+    }
+
+}
+
+/// Result of decoding a byte into a token
+#[derive(Clone, Copy)]
+struct ByteDecodeResult {
+    /// Decoded token
+    token: Token,
+    /// Expected type for the next token
+    upnext: TokenType,
+}
 
 fn get_x(byte: u8) -> u8 { (byte & 0b11000000) >> 6 }
 fn get_y(byte: u8) -> u8 { (byte & 0b00111000) >> 3 }
@@ -14,20 +121,9 @@ fn get_z(byte: u8) -> u8 {  byte & 0b00000111       }
 fn get_p(byte: u8) -> u8 { (byte & 0b00110000) >> 4 }
 fn get_q(byte: u8) -> u8 { (byte & 0b00001000) >> 3 }
 
-/// Result of decoding a byte into a token
-#[derive(Debug, Clone, Copy)]
-pub struct DecodeResult {
-    /// Decoded token
-    pub token: Token,
-    /// Expected type for the next token.
-    /// During emulation it allows to decide
-    /// which M-cycle to use to process next byte
-    pub upnext: TokenType,
-}
-
 /// Create generator which accepts bytes, yields decoded
 /// tokens and returns when entire instruction sequence is decoded
-pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeResult> {
+fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecodeResult> {
 
     |mut byte: u8| {
 
@@ -39,7 +135,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
             // or offset (aka displacement) byte
             let mut decoder = prefix_decoder();
             while let GeneratorState::Yielded(result) = Pin::new(&mut decoder).resume(byte) {
-                if let DecodeResult { token: Token::Prefix(code), .. } = result {
+                if let ByteDecodeResult { token: Token::Prefix(code), .. } = result {
                     prefix = Some(code);
                 }
                 // Re-yield current prefix token and advance to the next byte
@@ -80,13 +176,13 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
         match prefix {
 
             Some(0xed) => match (get_x(byte), get_y(byte), get_z(byte)) {
-                (1, 6, 0) => DecodeResult { token: Token::IN_AtBC, upnext: TokenType::Opcode },
-                (1, y, 0) => DecodeResult { token: Token::IN_RG_AtBC(Reg::from(y)), upnext: TokenType::Opcode },
-                (1, 6, 1) => DecodeResult { token: Token::OUT_AtBC_0, upnext: TokenType::Opcode },
-                (1, y, 1) => DecodeResult { token: Token::OUT_AtBC_RG(Reg::from(y)), upnext: TokenType::Opcode },
+                (1, 6, 0) => ByteDecodeResult { token: Token::IN_AtBC, upnext: TokenType::Opcode },
+                (1, y, 0) => ByteDecodeResult { token: Token::IN_RG_AtBC(Reg::from(y)), upnext: TokenType::Opcode },
+                (1, 6, 1) => ByteDecodeResult { token: Token::OUT_AtBC_0, upnext: TokenType::Opcode },
+                (1, y, 1) => ByteDecodeResult { token: Token::OUT_AtBC_RG(Reg::from(y)), upnext: TokenType::Opcode },
                 (1, _, 2) => {
                     let (p, q) = (get_p(byte), get_q(byte));
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: if q == 0 {
                             Token::SBC_HL_RP(RegPair::from(p).prefer_sp())
                         } else {
@@ -97,7 +193,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 },
                 (1, _, 3) => {
                     let (p, q) = (get_p(byte), get_q(byte));
-                    let low_operand_byte = yield DecodeResult {
+                    let low_operand_byte = yield ByteDecodeResult {
                         token: if q == 0 {
                             Token::LD_MM_RP(RegPair::from(p).prefer_sp())
                         } else {
@@ -105,50 +201,50 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                         },
                         upnext: TokenType::Operand
                     };
-                    let high_operand_byte = yield DecodeResult {
+                    let high_operand_byte = yield ByteDecodeResult {
                         token: Token::Operand(OperandValue::Byte(low_operand_byte)),
                         upnext: TokenType::Operand
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
                         upnext: TokenType::Opcode
                     }
                 },
-                (1, _, 4) => DecodeResult { token: Token::NEG, upnext: TokenType::Opcode },
-                (1, 1, 5) => DecodeResult { token: Token::RETI, upnext: TokenType::Opcode },
-                (1, _, 5) => DecodeResult { token: Token::RETN, upnext: TokenType::Opcode },
-                (1, y, 6) => DecodeResult { token: Token::IM(IntMode::from(y)), upnext: TokenType::Opcode },
-                (1, 0, 7) => DecodeResult { token: Token::LD_RG_RG(Reg::I, Reg::A), upnext: TokenType::Opcode },
-                (1, 1, 7) => DecodeResult { token: Token::LD_RG_RG(Reg::R, Reg::A), upnext: TokenType::Opcode },
-                (1, 2, 7) => DecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::I), upnext: TokenType::Opcode },
-                (1, 3, 7) => DecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::R), upnext: TokenType::Opcode },
-                (1, 4, 7) => DecodeResult { token: Token::RRD, upnext: TokenType::Opcode },
-                (1, 5, 7) => DecodeResult { token: Token::RLD, upnext: TokenType::Opcode },
-                (1, _, 7) => DecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
+                (1, _, 4) => ByteDecodeResult { token: Token::NEG, upnext: TokenType::Opcode },
+                (1, 1, 5) => ByteDecodeResult { token: Token::RETI, upnext: TokenType::Opcode },
+                (1, _, 5) => ByteDecodeResult { token: Token::RETN, upnext: TokenType::Opcode },
+                (1, y, 6) => ByteDecodeResult { token: Token::IM(IntMode::from(y)), upnext: TokenType::Opcode },
+                (1, 0, 7) => ByteDecodeResult { token: Token::LD_RG_RG(Reg::I, Reg::A), upnext: TokenType::Opcode },
+                (1, 1, 7) => ByteDecodeResult { token: Token::LD_RG_RG(Reg::R, Reg::A), upnext: TokenType::Opcode },
+                (1, 2, 7) => ByteDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::I), upnext: TokenType::Opcode },
+                (1, 3, 7) => ByteDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::R), upnext: TokenType::Opcode },
+                (1, 4, 7) => ByteDecodeResult { token: Token::RRD, upnext: TokenType::Opcode },
+                (1, 5, 7) => ByteDecodeResult { token: Token::RLD, upnext: TokenType::Opcode },
+                (1, _, 7) => ByteDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
                 (1, _, _) => unreachable!(),
-                (2, y, z) if z <= 3 && y >= 4 => DecodeResult {
+                (2, y, z) if z <= 3 && y >= 4 => ByteDecodeResult {
                     token: Token::BLOP(BlockOp::from((y << 2 ) | z)),
                     upnext: TokenType::Opcode
                 },
-                (2, _, _) => DecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
-                (_, _, _) => DecodeResult { token: Token::NOP, upnext: TokenType::Opcode }
+                (2, _, _) => ByteDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
+                (_, _, _) => ByteDecodeResult { token: Token::NOP, upnext: TokenType::Opcode }
             },
 
             Some(0xcb) => {
                 let (y, z) = (get_y(byte), get_z(byte));
                 match get_x(byte) {
-                    0 => DecodeResult { token: Token::SHOP(ShiftOp::from(y), Reg::from(z)), upnext: TokenType::Opcode },
-                    1 => DecodeResult { token: Token::BIT(y, Reg::from(z)), upnext: TokenType::Opcode },
-                    2 => DecodeResult { token: Token::RES(y, Reg::from(z)), upnext: TokenType::Opcode },
-                    3 => DecodeResult { token: Token::SET(y, Reg::from(z)), upnext: TokenType::Opcode },
+                    0 => ByteDecodeResult { token: Token::SHOP(ShiftOp::from(y), Reg::from(z)), upnext: TokenType::Opcode },
+                    1 => ByteDecodeResult { token: Token::BIT(y, Reg::from(z)), upnext: TokenType::Opcode },
+                    2 => ByteDecodeResult { token: Token::RES(y, Reg::from(z)), upnext: TokenType::Opcode },
+                    3 => ByteDecodeResult { token: Token::SET(y, Reg::from(z)), upnext: TokenType::Opcode },
                     _ => unreachable!()
                 }
             },
 
             Some(0xcbdd) | Some(0xcbfd) => {
                 // First byte after DDCB/FDCB is an offset and then opcode
-                byte = yield DecodeResult { token: Token::Offset(byte as i8), upnext: TokenType::Opcode };
-                DecodeResult {
+                byte = yield ByteDecodeResult { token: Token::Offset(byte as i8), upnext: TokenType::Opcode };
+                ByteDecodeResult {
                     token: match (get_x(byte), get_y(byte), get_z(byte)) {
                         (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL)),
                         (0, y, z) => Token::LDSH(alt_reg(Reg::from(z)), ShiftOp::from(y), alt_reg(Reg::AtHL)),
@@ -166,10 +262,10 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
             Some(0xdd) | Some(0xfd) | None  => match (get_x(byte), get_y(byte), get_z(byte)) {
 
                 // x=0, z=0
-                (0, 0, 0) => DecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
-                (0, 1, 0) => DecodeResult { token: Token::EX_AF, upnext: TokenType::Opcode },
+                (0, 0, 0) => ByteDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
+                (0, 1, 0) => ByteDecodeResult { token: Token::EX_AF, upnext: TokenType::Opcode },
                 (0, y, 0) => {
-                    let offset_byte = yield DecodeResult {
+                    let offset_byte = yield ByteDecodeResult {
                         token: match y {
                             2 => Token::DJNZ,
                             3 => Token::JR(Condition::None),
@@ -177,19 +273,19 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                         },
                         upnext: TokenType::Offset
                     };
-                    DecodeResult { token: Token::Offset(offset_byte as i8), upnext: TokenType::Opcode }
+                    ByteDecodeResult { token: Token::Offset(offset_byte as i8), upnext: TokenType::Opcode }
                 },
 
                 // x=0, z=1
                 (0, _, 1) => {
                     let p = get_p(byte);
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: if get_q(byte) == 0 {
-                            let low_operand_byte = yield DecodeResult {
+                            let low_operand_byte = yield ByteDecodeResult {
                                 token: Token::LD_RP_NN(alt_rpair(RegPair::from(p).prefer_sp())),
                                 upnext: TokenType::Operand
                             };
-                            let high_operand_byte = yield DecodeResult {
+                            let high_operand_byte = yield ByteDecodeResult {
                                 token: Token::Operand(OperandValue::Byte(low_operand_byte)),
                                 upnext: TokenType::Operand
                             };
@@ -202,12 +298,12 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 },
 
                 // x=0, z=2
-                (0, 0, 2) => DecodeResult { token: Token::LD_AtRP_A(RegPair::BC), upnext: TokenType::Opcode },
-                (0, 1, 2) => DecodeResult { token: Token::LD_A_AtRP(RegPair::BC), upnext: TokenType::Opcode },
-                (0, 2, 2) => DecodeResult { token: Token::LD_AtRP_A(RegPair::DE), upnext: TokenType::Opcode },
-                (0, 3, 2) => DecodeResult { token: Token::LD_A_AtRP(RegPair::DE), upnext: TokenType::Opcode },
+                (0, 0, 2) => ByteDecodeResult { token: Token::LD_AtRP_A(RegPair::BC), upnext: TokenType::Opcode },
+                (0, 1, 2) => ByteDecodeResult { token: Token::LD_A_AtRP(RegPair::BC), upnext: TokenType::Opcode },
+                (0, 2, 2) => ByteDecodeResult { token: Token::LD_AtRP_A(RegPair::DE), upnext: TokenType::Opcode },
+                (0, 3, 2) => ByteDecodeResult { token: Token::LD_A_AtRP(RegPair::DE), upnext: TokenType::Opcode },
                 (0, y, 2) => {
-                    let low_operand_byte = yield DecodeResult {
+                    let low_operand_byte = yield ByteDecodeResult {
                         token: match y {
                             4 => Token::LD_MM_RP(alt_rpair(RegPair::HL)),
                             5 => Token::LD_RP_MM(alt_rpair(RegPair::HL)),
@@ -217,11 +313,11 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                         },
                         upnext: TokenType::Operand
                     };
-                    let high_operand_byte = yield DecodeResult {
+                    let high_operand_byte = yield ByteDecodeResult {
                         token: Token::Operand(OperandValue::Byte(low_operand_byte)),
                         upnext: TokenType::Operand
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
                         upnext: TokenType::Opcode
                     }
@@ -231,7 +327,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 (0, _, 3) => {
                     let (p, q) = (get_p(byte), get_q(byte));
                     let rp = alt_rpair(RegPair::from(p).prefer_sp());
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: if q == 0 { Token::INC_RP(rp) } else { Token::DEC_RP(rp) },
                         upnext: TokenType::Opcode
                     }
@@ -244,11 +340,11 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                     } else {
                         Token::DEC_RG(alt_reg(Reg::from(y)))
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: match prefix {
                             None => opcode_token,
                             Some(_) => {
-                                let offset_byte = yield DecodeResult {
+                                let offset_byte = yield ByteDecodeResult {
                                     token: opcode_token,
                                     upnext: TokenType::Offset
                                 };
@@ -263,25 +359,25 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 (0, y, 6) => {
                     match prefix {
                         None => {
-                            let operand_byte = yield DecodeResult {
+                            let operand_byte = yield ByteDecodeResult {
                                 token: Token::LD_RG_N(alt_reg(Reg::from(y))),
                                 upnext: TokenType::Operand
                             };
-                            DecodeResult {
+                            ByteDecodeResult {
                                 token: Token::Operand(OperandValue::Byte(operand_byte)),
                                 upnext: TokenType::Opcode
                             }
                         },
                         Some(_) => {
-                            let offset_byte = yield DecodeResult {
+                            let offset_byte = yield ByteDecodeResult {
                                 token: Token::LD_RG_N(alt_reg(Reg::from(y))),
                                 upnext: TokenType::Offset
                             };
-                            let operand_byte = yield DecodeResult {
+                            let operand_byte = yield ByteDecodeResult {
                                 token: Token::Offset(offset_byte as i8),
                                 upnext: TokenType::Operand
                             };
-                            DecodeResult {
+                            ByteDecodeResult {
                                 token: Token::Operand(OperandValue::Byte(operand_byte)),
                                 upnext: TokenType::Opcode
                             }
@@ -290,14 +386,14 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 },
 
                 // x=0, z=7
-                (0, 0, 7) => DecodeResult { token: Token::RLCA, upnext: TokenType::Opcode },
-                (0, 1, 7) => DecodeResult { token: Token::RRCA, upnext: TokenType::Opcode },
-                (0, 2, 7) => DecodeResult { token: Token::RLA, upnext: TokenType::Opcode },
-                (0, 3, 7) => DecodeResult { token: Token::RRA, upnext: TokenType::Opcode },
-                (0, 4, 7) => DecodeResult { token: Token::DAA, upnext: TokenType::Opcode },
-                (0, 5, 7) => DecodeResult { token: Token::CPL, upnext: TokenType::Opcode },
-                (0, 6, 7) => DecodeResult { token: Token::SCF, upnext: TokenType::Opcode },
-                (0, 7, 7) => DecodeResult { token: Token::CCF, upnext: TokenType::Opcode },
+                (0, 0, 7) => ByteDecodeResult { token: Token::RLCA, upnext: TokenType::Opcode },
+                (0, 1, 7) => ByteDecodeResult { token: Token::RRCA, upnext: TokenType::Opcode },
+                (0, 2, 7) => ByteDecodeResult { token: Token::RLA, upnext: TokenType::Opcode },
+                (0, 3, 7) => ByteDecodeResult { token: Token::RRA, upnext: TokenType::Opcode },
+                (0, 4, 7) => ByteDecodeResult { token: Token::DAA, upnext: TokenType::Opcode },
+                (0, 5, 7) => ByteDecodeResult { token: Token::CPL, upnext: TokenType::Opcode },
+                (0, 6, 7) => ByteDecodeResult { token: Token::SCF, upnext: TokenType::Opcode },
+                (0, 7, 7) => ByteDecodeResult { token: Token::CCF, upnext: TokenType::Opcode },
                 (0, _, 7) => unreachable!(),
 
                 // x=1,2
@@ -318,16 +414,16 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                         Token::ALU_RG(AluOp::from(y), alt_reg(Reg::from(z)))
                     };
                     match prefix {
-                        None => DecodeResult {
+                        None => ByteDecodeResult {
                             token: opcode_token,
                             upnext: TokenType::Opcode
                         },
                         Some(_) => {
-                            let offset_byte = yield DecodeResult {
+                            let offset_byte = yield ByteDecodeResult {
                                 token: opcode_token,
                                 upnext: TokenType::Offset
                             };
-                            DecodeResult {
+                            ByteDecodeResult {
                                 token: Token::Offset(offset_byte as i8),
                                 upnext: TokenType::Opcode
                             }
@@ -336,7 +432,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 },
 
                 // x=3, z=0
-                (3, y, 0) => DecodeResult {
+                (3, y, 0) => ByteDecodeResult {
                     token: Token::RET(Condition::from(y)),
                     upnext: TokenType::Opcode
                 },
@@ -344,7 +440,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 // x=3, z=1
                 (3, _, 1) => {
                     let (p, q) = (get_p(byte), get_q(byte));
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: if q == 0 {
                             Token::POP(alt_rpair(RegPair::from(p).prefer_af()))
                         } else {
@@ -363,15 +459,15 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
                 // x=3, z=2 &
                 // x=3, y=0, z=3
                 (3, y, z @ 2) | (3, y @ 0, z @ 3) => {
-                    let low_operand_byte = yield DecodeResult {
+                    let low_operand_byte = yield ByteDecodeResult {
                         token: Token::JP(if z == 2 { Condition::from(y) } else { Condition::None }),
                         upnext: TokenType::Operand
                     };
-                    let high_operand_byte = yield DecodeResult {
+                    let high_operand_byte = yield ByteDecodeResult {
                         token: Token::Operand(OperandValue::Byte(low_operand_byte)),
                         upnext: TokenType::Operand
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
                         upnext: TokenType::Opcode
                     }
@@ -379,42 +475,42 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
 
                 // x=3, z=3
                 (3, y @ (2 | 3), 3) => {
-                    let port_byte = yield DecodeResult {
+                    let port_byte = yield ByteDecodeResult {
                         token: if y == 2 { Token::OUT_N_A } else { Token::IN_A_N },
                         upnext: TokenType::Operand
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: Token::Operand(OperandValue::Byte(port_byte)),
                         upnext: TokenType::Opcode
                     }
                 },
-                (3, 4, 3) => DecodeResult {
+                (3, 4, 3) => ByteDecodeResult {
                     token: Token::EX_AtSP_RP(alt_rpair(RegPair::HL)),
                     upnext: TokenType::Opcode
                 },
-                (3, 5, 3) => DecodeResult { token: Token::EX_DE_HL, upnext: TokenType::Opcode },
-                (3, 6, 3) => DecodeResult { token: Token::DI, upnext: TokenType::Opcode },
-                (3, 7, 3) => DecodeResult { token: Token::EI, upnext: TokenType::Opcode },
+                (3, 5, 3) => ByteDecodeResult { token: Token::EX_DE_HL, upnext: TokenType::Opcode },
+                (3, 6, 3) => ByteDecodeResult { token: Token::DI, upnext: TokenType::Opcode },
+                (3, 7, 3) => ByteDecodeResult { token: Token::EI, upnext: TokenType::Opcode },
                 (3, _, 3) => unreachable!(),
 
                 // x=3, z=4,5
                 (3, y, z @ (4 | 5)) => {
                     let (p, q) = (get_p(byte), get_q(byte));
                     if z == 5 && q == 0 {
-                        DecodeResult {
+                        ByteDecodeResult {
                             token: Token::PUSH(alt_rpair(RegPair::from(p).prefer_af())),
                             upnext: TokenType::Opcode
                         }
                     } else {
-                        let low_operand_byte = yield DecodeResult {
+                        let low_operand_byte = yield ByteDecodeResult {
                             token: Token::CALL(if z == 4 { Condition::from(y) } else { Condition::None }),
                             upnext: TokenType::Operand
                         };
-                        let high_operand_byte = yield DecodeResult {
+                        let high_operand_byte = yield ByteDecodeResult {
                             token: Token::Operand(OperandValue::Byte(low_operand_byte)),
                             upnext: TokenType::Operand
                         };
-                        DecodeResult {
+                        ByteDecodeResult {
                             token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
                             upnext: TokenType::Opcode
                         }
@@ -423,18 +519,18 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
 
                 // x=3, z=6
                 (3, y, 6) => {
-                    let operand_byte = yield DecodeResult {
+                    let operand_byte = yield ByteDecodeResult {
                         token: Token::ALU_N(AluOp::from(y)),
                         upnext: TokenType::Operand
                     };
-                    DecodeResult {
+                    ByteDecodeResult {
                         token: Token::Operand(OperandValue::Byte(operand_byte)),
                         upnext: TokenType::Opcode
                     }
                 },
 
                 // x=3, z=7
-                (3, y, 7) => DecodeResult { token: Token::RST(y), upnext: TokenType::Opcode },
+                (3, y, 7) => ByteDecodeResult { token: Token::RST(y), upnext: TokenType::Opcode },
 
                 (_, _, _) => unreachable!()
 
@@ -450,7 +546,7 @@ pub fn opcode_decoder() -> impl Generator<u8, Yield=DecodeResult, Return=DecodeR
 
 /// Create generator which accepts bytes, yields decoded
 /// prefix tokens and completes on first non-prefix token
-pub fn prefix_decoder() -> impl Generator<u8, Yield=DecodeResult> {
+fn prefix_decoder() -> impl Generator<u8, Yield=ByteDecodeResult> {
 
     |mut byte: u8| {
 
@@ -492,7 +588,7 @@ pub fn prefix_decoder() -> impl Generator<u8, Yield=DecodeResult> {
             };
 
             // Yield prefix token and advance to the next byte
-            byte = yield DecodeResult { token: Token::Prefix(prefix), upnext };
+            byte = yield ByteDecodeResult { token: Token::Prefix(prefix), upnext };
 
             current_prefix = Some(prefix);
 

@@ -1,8 +1,3 @@
-use std::{
-    pin::Pin,
-    ops::{Generator, GeneratorState},
-};
-
 use crate::{
     mkword,
     spword,
@@ -27,62 +22,37 @@ impl<'a> Device<'a> for Cpu<'a> {
             // Instruction loop
             loop {
 
-                let mut decoder = opcode_decoder();
-                let mut upnext = TokenType::Opcode;
-                let mut opcode: Option<Token> = None;
-                let mut offset: Option<i8> = None;
-                let mut byte_operand: Option<u8> = None;
-                let mut word_operand: Option<u16> = None;
+                let mut decoder = InstructionDecoder::new();
 
                 // Instruction decode loop
-                loop {
+                while {
 
-                    let state = {
+                    let pc = self.state.rp(RegPair::PC).get(); // read current PC
+                    self.state.rp(RegPair::PC).set(pc + 1); // increment PC to the next memory location
 
-                        let pc = self.state.rp(RegPair::PC).get(); // read current PC
-                        self.state.rp(RegPair::PC).set(pc + 1); // increment PC to the next memory location
-
-                        // Read next byte using appropriate M-cycle
-                        let byte: u8 = match upnext {
-                            TokenType::Opcode => yield_task!(self.opcode_read(pc)),
-                            TokenType::Offset | TokenType::Operand => yield_task!(self.memory_read(pc))
-                        };
-
-                        // Decode byte with opcode decoder
-                        Pin::new(&mut decoder).resume(byte)
-
+                    // Read next byte using appropriate M-cycle
+                    let byte: u8 = match decoder.upnext() {
+                        TokenType::Opcode => yield_task!(self.opcode_read(pc)),
+                        TokenType::Offset | TokenType::Operand => yield_task!(self.memory_read(pc))
                     };
 
-                    match state {
-                        GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result.token {
-                            Token::Prefix(_) => (),
-                            Token::Offset(value) => offset = Some(value),
-                            Token::Operand(OperandValue::Byte(value)) => byte_operand = Some(value),
-                            Token::Operand(OperandValue::Word(value)) => word_operand = Some(value),
-                            token => opcode = Some(token)
-                        }
-                    }
+                    // Decode byte
+                    decoder.decode(byte)
 
-                    if let GeneratorState::Yielded(DecodeResult { upnext: next_upnext, .. }) = state {
-                        upnext = next_upnext;
-                    } else if let GeneratorState::Complete(_) = state {
-                        break;
-                    }
+                } {}
 
-                }
-
-                match opcode.unwrap() {
+                match decoder.expect_opcode() {
 
                     // 8-bit Load
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.state.idx_addr(dst, offset.unwrap());
+                        let addr = self.state.idx_addr(dst, decoder.expect_offset());
                         yield_task!(self.memory_write(addr, self.state.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.state.idx_addr(src, offset.unwrap());
+                        let addr = self.state.idx_addr(src, decoder.expect_offset());
                         self.state.rg(dst).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
@@ -106,10 +76,10 @@ impl<'a> Device<'a> for Cpu<'a> {
                     },
                     Token::LD_RG_N(Reg::AtHL) => {
                         let addr = self.state.rp(RegPair::HL).get();
-                        yield_task!(self.memory_write(addr, byte_operand.unwrap()));
+                        yield_task!(self.memory_write(addr, decoder.expect_byte_operand()));
                     },
                     Token::LD_RG_N(reg) => {
-                        self.state.rg(reg).set(byte_operand.unwrap());
+                        self.state.rg(reg).set(decoder.expect_byte_operand());
                     },
                     Token::LD_A_AtRP(rpair) => {
                         let addr = self.state.rp(rpair).get();
@@ -120,27 +90,27 @@ impl<'a> Device<'a> for Cpu<'a> {
                         yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
                     },
                     Token::LD_A_MM => {
-                        let addr = word_operand.unwrap();
+                        let addr = decoder.expect_word_operand();
                         self.state.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_MM_A => {
-                        let addr = word_operand.unwrap();
+                        let addr = decoder.expect_word_operand();
                         yield_task!(self.memory_write(addr, self.state.rg(Reg::A).get()));
                     },
 
                     // 16-bit Load
 
                     Token::LD_RP_NN(rpair) => {
-                        self.state.rp(rpair).set(word_operand.unwrap());
+                        self.state.rp(rpair).set(decoder.expect_word_operand());
                     },
                     Token::LD_RP_MM(rpair) => {
-                        let addr = word_operand.unwrap();
+                        let addr = decoder.expect_word_operand();
                         let lo = yield_task!(self.memory_read(addr));
                         let hi = yield_task!(self.memory_read(addr + 1));
                         self.state.rp(rpair).set(mkword!(hi, lo));
                     },
                     Token::LD_MM_RP(rpair) => {
-                        let addr = word_operand.unwrap();
+                        let addr = decoder.expect_word_operand();
                         let (hi, lo) = spword!(self.state.rp(rpair).get());
                         yield_task!(self.memory_write(addr, lo));
                         yield_task!(self.memory_write(addr + 1, hi));
@@ -309,11 +279,11 @@ impl<'a> Device<'a> for Cpu<'a> {
                     // IO
 
                     Token::IN_A_N => {
-                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
+                        let addr = mkword!(self.state.rg(Reg::A).get(), decoder.expect_byte_operand());
                         self.state.rg(Reg::A).set(yield_task!(self.io_read(addr)));
                     },
                     Token::OUT_N_A => {
-                        let addr = mkword!(self.state.rg(Reg::A).get(), byte_operand.unwrap());
+                        let addr = mkword!(self.state.rg(Reg::A).get(), decoder.expect_byte_operand());
                         yield_task!(self.io_write(addr, self.state.rg(Reg::A).get()));
                     },
                     Token::IN_RG_AtBC(reg) => {
@@ -341,9 +311,7 @@ impl<'a> Device<'a> for Cpu<'a> {
 
                     // Non-opcode is not expected
 
-                    Token::Prefix(_) | Token::Offset(_) | Token::Operand(_) => {
-                        unreachable!();
-                    }
+                    Token::Prefix(_) | Token::Offset(_) | Token::Operand(_) => unreachable!()
 
                 }
 

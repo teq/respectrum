@@ -153,35 +153,6 @@ pub enum OperandValue {
     Word(u16)
 }
 
-bitflags! {
-    /// CPU flags
-    pub struct Flags : u8 {
-        const NONE = 0;
-        /// Carry flag
-        const C = 1 << 0;
-        /// Add / Subtract flag
-        const N = 1 << 1;
-        /// Parity / Overflow flag
-        const P = 1 << 2;
-        /// A copy of bit 3 of the result
-        const X = 1 << 3;
-        /// Half Carry flag
-        const H = 1 << 4;
-        /// A copy of bit 5 of the result
-        const Y = 1 << 5;
-        /// Zero flag
-        const Z = 1 << 6;
-        /// Sign flag
-        const S = 1 << 7;
-    }
-}
-
-impl From<u8> for Flags {
-    fn from(flags: u8) -> Self {
-        unsafe { std::mem::transmute(flags) }
-    }
-}
-
 /// 8-bit register
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Reg {

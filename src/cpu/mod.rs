@@ -1,3 +1,5 @@
+pub mod alu;
+
 mod cpu;
 pub use cpu::Cpu;
 

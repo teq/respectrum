@@ -15,20 +15,22 @@ use respectrum::tools;
 fn disassembler_recognizes_all_z80_opcodes() {
 
     // File with reference listing
-    let file = File::open("tests/misc/disassm.lst").unwrap();
+    let file = File::open("tests/misc/opcodes.lst").unwrap();
     let mut lines = io::BufReader::new(file).lines().enumerate();
 
+    let mut current_addr: u16 = 0;
+
     // Disassembler to test
-    let mut disassembler = tools::disassembler(0);
+    let mut disassembler = tools::disassembler(current_addr);
 
     // Mnemonic formatter
     let formatter: tools::Formatter = Default::default();
 
     // Iterate over listing lines
-    while let Some((line_num, Ok(line))) = lines.next() {
+    while let Some((line_idx, Ok(line))) = lines.next() {
 
         let report_failure = |details: String| {
-            panic!("Failure at line {}:\n{}\nDetails: {}", line_num, line, details);
+            panic!("Failure at line {}:\n{}\nDetails: {}", line_idx + 1, line, details);
         };
 
         // Line body excluding possible comments after ";"
@@ -36,10 +38,9 @@ fn disassembler_recognizes_all_z80_opcodes() {
 
         if body.is_empty() { continue; }
 
-        // Split address, opcode bytes and parsed disassembled mnemonic
-        let mut parts = body.split(|c| c == ':' || c == '|');
+        // Split opcode bytes and parsed disassembled mnemonic
+        let mut parts = body.split('|');
 
-        let expected_addr = u16::from_str_radix(parts.next().unwrap().trim(), 16).unwrap();
         let expected_bytes = parts.next().unwrap().trim();
         let expected_mnemonic = parts.next().unwrap().trim();
 
@@ -67,10 +68,10 @@ fn disassembler_recognizes_all_z80_opcodes() {
                     // It is a last byte for current opcode, disassembler should yield a line
                     if let Some(op) = maybe_op {
 
-                        if expected_addr != op.addr {
+                        if current_addr != op.addr {
                             report_failure(format!(
                                 "Wrong address. Expecting: {}, got: {}",
-                                expected_addr, op.addr
+                                current_addr, op.addr
                             ));
                         }
 
@@ -89,6 +90,8 @@ fn disassembler_recognizes_all_z80_opcodes() {
                                 expected_mnemonic, formatted_mnemonic
                             ));
                         }
+
+                        current_addr += op.len as u16;
 
                     } else {
                         report_failure(String::from("No output on last opcode byte"));

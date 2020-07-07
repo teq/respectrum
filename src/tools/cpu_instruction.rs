@@ -234,7 +234,7 @@ impl Formatter {
         match alu_op {
             AluOp::ADD => format!("ADD A,{}", operand),
             AluOp::ADC => format!("ADC A,{}", operand),
-            AluOp::SUB => format!("SUB A,{}", operand),
+            AluOp::SUB => format!("SUB {}", operand),
             AluOp::SBC => format!("SBC A,{}", operand),
             AluOp::AND => format!("AND {}", operand),
             AluOp::XOR => format!("XOR {}", operand),

@@ -247,12 +247,12 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 ByteDecodeResult {
                     token: match (get_x(byte), get_y(byte), get_z(byte)) {
                         (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL)),
-                        (0, y, z) => Token::LDSH(alt_reg(Reg::from(z)), ShiftOp::from(y), alt_reg(Reg::AtHL)),
+                        (0, y, z) => Token::SHOPLD(ShiftOp::from(y), alt_reg(Reg::AtHL), Reg::from(z)),
                         (1, y, _) => Token::BIT(y, alt_reg(Reg::AtHL)),
                         (2, y, 6) => Token::RES(y, alt_reg(Reg::AtHL)),
-                        (2, y, z) => Token::LDRES(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL)),
+                        (2, y, z) => Token::RESLD(y, alt_reg(Reg::AtHL), Reg::from(z)),
                         (3, y, 6) => Token::SET(y, alt_reg(Reg::AtHL)),
-                        (3, y, z) => Token::LDSET(alt_reg(Reg::from(z)), y, alt_reg(Reg::AtHL)),
+                        (3, y, z) => Token::SETLD(y, alt_reg(Reg::AtHL), Reg::from(z)),
                         (_, _, _) => unreachable!()
                     },
                     upnext: TokenType::Opcode
@@ -341,20 +341,17 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                     } else {
                         Token::DEC_RG(alt_reg(reg))
                     };
-                    if prefix.is_some() && reg == Reg::AtHL {
-                        let offset_byte = yield ByteDecodeResult {
-                            token: opcode_token,
-                            upnext: TokenType::Offset
-                        };
-                        ByteDecodeResult {
-                            token: Token::Offset(offset_byte as i8),
-                            upnext: TokenType::Opcode
-                        }
-                    } else {
-                        ByteDecodeResult {
-                            token: opcode_token,
-                            upnext: TokenType::Opcode
-                        }
+                    ByteDecodeResult {
+                        token: if prefix.is_some() && reg == Reg::AtHL {
+                            let offset_byte = yield ByteDecodeResult {
+                                token: opcode_token,
+                                upnext: TokenType::Offset
+                            };
+                            Token::Offset(offset_byte as i8)
+                        } else {
+                            opcode_token
+                        },
+                        upnext: TokenType::Opcode
                     }
                 },
 
@@ -362,28 +359,21 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (0, y, 6) => {
                     let reg = Reg::from(y);
                     let opcode_token = Token::LD_RG_N(alt_reg(reg));
-                    if prefix.is_some() && reg == Reg::AtHL {
-                        let offset_byte = yield ByteDecodeResult {
-                            token: opcode_token,
-                            upnext: TokenType::Offset
-                        };
-                        let operand_byte = yield ByteDecodeResult {
-                            token: Token::Offset(offset_byte as i8),
-                            upnext: TokenType::Operand
-                        };
-                        ByteDecodeResult {
-                            token: Token::Operand(OperandValue::Byte(operand_byte)),
-                            upnext: TokenType::Opcode
-                        }
-                    } else {
-                        let operand_byte = yield ByteDecodeResult {
-                            token: opcode_token,
-                            upnext: TokenType::Operand
-                        };
-                        ByteDecodeResult {
-                            token: Token::Operand(OperandValue::Byte(operand_byte)),
-                            upnext: TokenType::Opcode
-                        }
+                    let operand_byte = yield ByteDecodeResult {
+                        token: if prefix.is_some() && reg == Reg::AtHL {
+                            let offset_byte = yield ByteDecodeResult {
+                                token: opcode_token,
+                                upnext: TokenType::Offset
+                            };
+                            Token::Offset(offset_byte as i8)
+                        } else {
+                            opcode_token
+                        },
+                        upnext: TokenType::Operand
+                    };
+                    ByteDecodeResult {
+                        token: Token::Operand(OperandValue::Byte(operand_byte)),
+                        upnext: TokenType::Opcode
                     }
                 },
 
@@ -398,38 +388,48 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (0, 7, 7) => ByteDecodeResult { token: Token::CCF, upnext: TokenType::Opcode },
                 (0, _, 7) => unreachable!(),
 
-                // x=1,2
-                (x @ (1 | 2), y, z) => {
-                    let opcode_token = if x == 1 {
-                        let dst_reg = Reg::from(y);
-                        let src_reg = Reg::from(z);
-                        if dst_reg == Reg::AtHL && src_reg == Reg::AtHL {
-                            Token::HALT // exception
-                        } else if dst_reg == Reg::AtHL {
-                            Token::LD_RG_RG(alt_reg(dst_reg), src_reg)
-                        } else if src_reg == Reg::AtHL {
-                            Token::LD_RG_RG(dst_reg, alt_reg(src_reg))
-                        } else {
-                            Token::LD_RG_RG(alt_reg(dst_reg), alt_reg(src_reg))
-                        }
+                // x=1
+                (1, y, z) => {
+                    let dst_reg = Reg::from(y);
+                    let src_reg = Reg::from(z);
+                    let opcode_token = if dst_reg == Reg::AtHL && src_reg == Reg::AtHL {
+                        Token::HALT // exception
+                    } else if dst_reg == Reg::AtHL {
+                        Token::LD_RG_RG(alt_reg(dst_reg), src_reg)
+                    } else if src_reg == Reg::AtHL {
+                        Token::LD_RG_RG(dst_reg, alt_reg(src_reg))
                     } else {
-                        Token::ALU_RG(AluOp::from(y), alt_reg(Reg::from(z)))
+                        Token::LD_RG_RG(alt_reg(dst_reg), alt_reg(src_reg))
                     };
-                    match prefix {
-                        None => ByteDecodeResult {
-                            token: opcode_token,
-                            upnext: TokenType::Opcode
-                        },
-                        Some(_) => {
+                    ByteDecodeResult {
+                        token: if prefix.is_some() && (dst_reg == Reg::AtHL || src_reg == Reg::AtHL) {
                             let offset_byte = yield ByteDecodeResult {
                                 token: opcode_token,
                                 upnext: TokenType::Offset
                             };
-                            ByteDecodeResult {
-                                token: Token::Offset(offset_byte as i8),
-                                upnext: TokenType::Opcode
-                            }
-                        }
+                            Token::Offset(offset_byte as i8)
+                        } else {
+                            opcode_token
+                        },
+                        upnext: TokenType::Opcode
+                    }
+                },
+
+                // x=2
+                (2, y, z) => {
+                    let reg = Reg::from(z);
+                    let opcode_token = Token::ALU_RG(AluOp::from(y), alt_reg(reg));
+                    ByteDecodeResult {
+                        token: if prefix.is_some() && reg == Reg::AtHL {
+                            let offset_byte = yield ByteDecodeResult {
+                                token: opcode_token,
+                                upnext: TokenType::Offset
+                            };
+                            Token::Offset(offset_byte as i8)
+                        } else {
+                            opcode_token
+                        },
+                        upnext: TokenType::Opcode
                     }
                 },
 

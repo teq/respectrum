@@ -493,47 +493,47 @@ DD 19       | ADD IX,DE
 DD 21 0D EA | LD IX,EA0Dh
 DD 22 25 AC | LD (AC25h),IX
 DD 23       | INC IX
-DD 24       | INC IXh; ***
-DD 25       | DEC IXh; ***
-DD 26 A8    | LD IXh,A8h; ***
+DD 24       | INC IXH; ***
+DD 25       | DEC IXH; ***
+DD 26 A8    | LD IXH,A8h; ***
 DD 29       | ADD IX,IX
 DD 2A E6 32 | LD IX,(32E6h)
 DD 2B       | DEC IX
-DD 2C       | INC IXl; ***
-DD 2D       | DEC IXl; ***
-DD 2E EA    | LD IXl,EAh; ***
+DD 2C       | INC IXL; ***
+DD 2D       | DEC IXL; ***
+DD 2E EA    | LD IXL,EAh; ***
 DD 34 d     | INC (IX+d)
 DD 35 d     | DEC (IX+d)
 DD 36 d 93  | LD (IX+d),93h
 DD 39       | ADD IX,SP
-DD 44       | LD B,IXh; ***
-DD 45       | LD B,IXl; ***
+DD 44       | LD B,IXH; ***
+DD 45       | LD B,IXL; ***
 DD 46 d     | LD B,(IX+d)
-DD 4C       | LD C,IXh; ***
-DD 4D       | LD C,IXl; ***
+DD 4C       | LD C,IXH; ***
+DD 4D       | LD C,IXL; ***
 DD 4E d     | LD C,(IX+d)
-DD 54       | LD D,IXh; ***
-DD 55       | LD D,IXl; ***
+DD 54       | LD D,IXH; ***
+DD 55       | LD D,IXL; ***
 DD 56 d     | LD D,(IX+d)
-DD 5C       | LD E,IXh; ***
-DD 5D       | LD E,IXl; ***
+DD 5C       | LD E,IXH; ***
+DD 5D       | LD E,IXL; ***
 DD 5E d     | LD E,(IX+d)
-DD 60       | LD IXh,B; ***
-DD 61       | LD IXh,C; ***
-DD 62       | LD IXh,D; ***
-DD 63       | LD IXh,E; ***
-DD 64       | LD IXh,IXh; ***
-DD 65       | LD IXh,IXl; ***
+DD 60       | LD IXH,B; ***
+DD 61       | LD IXH,C; ***
+DD 62       | LD IXH,D; ***
+DD 63       | LD IXH,E; ***
+DD 64       | LD IXH,IXH; ***
+DD 65       | LD IXH,IXL; ***
 DD 66 d     | LD H,(IX+d)
-DD 67       | LD IXh,A; ***
-DD 68       | LD IXl,B; ***
-DD 69       | LD IXl,C; ***
-DD 6A       | LD IXl,D; ***
-DD 6B       | LD IXl,E; ***
-DD 6C       | LD IXl,IXh; ***
-DD 6D       | LD IXl,IXl; ***
+DD 67       | LD IXH,A; ***
+DD 68       | LD IXL,B; ***
+DD 69       | LD IXL,C; ***
+DD 6A       | LD IXL,D; ***
+DD 6B       | LD IXL,E; ***
+DD 6C       | LD IXL,IXH; ***
+DD 6D       | LD IXL,IXL; ***
 DD 6E d     | LD L,(IX+d)
-DD 6F       | LD IXl,A; ***
+DD 6F       | LD IXL,A; ***
 DD 70 d     | LD (IX+d),B
 DD 71 d     | LD (IX+d),C
 DD 72 d     | LD (IX+d),D
@@ -541,32 +541,32 @@ DD 73 d     | LD (IX+d),E
 DD 74 d     | LD (IX+d),H
 DD 75 d     | LD (IX+d),L
 DD 77 d     | LD (IX+d),A
-DD 7C       | LD A,IXh; ***
-DD 7D       | LD A,IXl; ***
+DD 7C       | LD A,IXH; ***
+DD 7D       | LD A,IXL; ***
 DD 7E d     | LD A,(IX+d)
-DD 84       | ADD A,IXh; ***
-DD 85       | ADD A,IXl; ***
+DD 84       | ADD A,IXH; ***
+DD 85       | ADD A,IXL; ***
 DD 86 d     | ADD A,(IX+d)
-DD 8C       | ADC A,IXh; ***
-DD 8D       | ADC A,IXl; ***
+DD 8C       | ADC A,IXH; ***
+DD 8D       | ADC A,IXL; ***
 DD 8E d     | ADC A,(IX+d)
-DD 94       | SUB IXh; ***
-DD 95       | SUB IXl; ***
+DD 94       | SUB IXH; ***
+DD 95       | SUB IXL; ***
 DD 96 d     | SUB (IX+d)
-DD 9C       | SBC A,IXh; ***
-DD 9D       | SBC A,IXl; ***
+DD 9C       | SBC A,IXH; ***
+DD 9D       | SBC A,IXL; ***
 DD 9E d     | SBC A,(IX+d)
-DD A4       | AND IXh; ***
-DD A5       | AND IXl; ***
+DD A4       | AND IXH; ***
+DD A5       | AND IXL; ***
 DD A6 d     | AND (IX+d)
-DD AC       | XOR IXh; ***
-DD AD       | XOR IXl; ***
+DD AC       | XOR IXH; ***
+DD AD       | XOR IXL; ***
 DD AE d     | XOR (IX+d)
-DD B4       | OR IXh; ***
-DD B5       | OR IXl; ***
+DD B4       | OR IXH; ***
+DD B5       | OR IXL; ***
 DD B6 d     | OR (IX+d)
-DD BC       | CP IXh; ***
-DD BD       | CP IXl; ***
+DD BC       | CP IXH; ***
+DD BD       | CP IXL; ***
 DD BE d     | CP (IX+d)
 DD CB d 00  | RLC (IX+d),B; ***
 DD CB d 01  | RLC (IX+d),C; ***

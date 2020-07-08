@@ -335,52 +335,54 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
 
                 // x=0, z=4,5
                 (0, y, z @ (4 | 5)) => {
+                    let reg = Reg::from(y);
                     let opcode_token = if z == 4 {
-                        Token::INC_RG(alt_reg(Reg::from(y)))
+                        Token::INC_RG(alt_reg(reg))
                     } else {
-                        Token::DEC_RG(alt_reg(Reg::from(y)))
+                        Token::DEC_RG(alt_reg(reg))
                     };
-                    ByteDecodeResult {
-                        token: match prefix {
-                            None => opcode_token,
-                            Some(_) => {
-                                let offset_byte = yield ByteDecodeResult {
-                                    token: opcode_token,
-                                    upnext: TokenType::Offset
-                                };
-                                Token::Offset(offset_byte as i8)
-                            }
-                        },
-                        upnext: TokenType::Opcode
+                    if prefix.is_some() && reg == Reg::AtHL {
+                        let offset_byte = yield ByteDecodeResult {
+                            token: opcode_token,
+                            upnext: TokenType::Offset
+                        };
+                        ByteDecodeResult {
+                            token: Token::Offset(offset_byte as i8),
+                            upnext: TokenType::Opcode
+                        }
+                    } else {
+                        ByteDecodeResult {
+                            token: opcode_token,
+                            upnext: TokenType::Opcode
+                        }
                     }
                 },
 
                 // x=0, z=6
                 (0, y, 6) => {
-                    match prefix {
-                        None => {
-                            let operand_byte = yield ByteDecodeResult {
-                                token: Token::LD_RG_N(alt_reg(Reg::from(y))),
-                                upnext: TokenType::Operand
-                            };
-                            ByteDecodeResult {
-                                token: Token::Operand(OperandValue::Byte(operand_byte)),
-                                upnext: TokenType::Opcode
-                            }
-                        },
-                        Some(_) => {
-                            let offset_byte = yield ByteDecodeResult {
-                                token: Token::LD_RG_N(alt_reg(Reg::from(y))),
-                                upnext: TokenType::Offset
-                            };
-                            let operand_byte = yield ByteDecodeResult {
-                                token: Token::Offset(offset_byte as i8),
-                                upnext: TokenType::Operand
-                            };
-                            ByteDecodeResult {
-                                token: Token::Operand(OperandValue::Byte(operand_byte)),
-                                upnext: TokenType::Opcode
-                            }
+                    let reg = Reg::from(y);
+                    let opcode_token = Token::LD_RG_N(alt_reg(reg));
+                    if prefix.is_some() && reg == Reg::AtHL {
+                        let offset_byte = yield ByteDecodeResult {
+                            token: opcode_token,
+                            upnext: TokenType::Offset
+                        };
+                        let operand_byte = yield ByteDecodeResult {
+                            token: Token::Offset(offset_byte as i8),
+                            upnext: TokenType::Operand
+                        };
+                        ByteDecodeResult {
+                            token: Token::Operand(OperandValue::Byte(operand_byte)),
+                            upnext: TokenType::Opcode
+                        }
+                    } else {
+                        let operand_byte = yield ByteDecodeResult {
+                            token: opcode_token,
+                            upnext: TokenType::Operand
+                        };
+                        ByteDecodeResult {
+                            token: Token::Operand(OperandValue::Byte(operand_byte)),
+                            upnext: TokenType::Opcode
                         }
                     }
                 },

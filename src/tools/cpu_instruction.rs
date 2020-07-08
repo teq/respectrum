@@ -64,80 +64,131 @@ impl Formatter {
 
         match &inst.opcode {
 
-            Token::NOP => String::from("NOP"),
-            Token::EX_AF => String::from("EX AF,AF'"),
-            Token::DJNZ => format!("DJNZ {}", self.format_addr_offset(inst)),
-            Token::JR(cond) => match cond {
-                Condition::None => format!("JR {}", self.format_addr_offset(inst)),
-                _ => format!("JR {},{}", self.format_condition(cond), self.format_addr_offset(inst))
-            },
-            Token::LD_RP_NN(rpair) => format!("LD {},{}", self.format_regpair(rpair), self.format_operand(inst)),
-            Token::ADD_RP_RP(dst, src) => format!("ADD {},{}", self.format_regpair(dst), self.format_regpair(src)),
-            Token::LD_AtRP_A(rpair) => format!("LD ({}),A", self.format_regpair(rpair)),
+            // 8-bit Load
+            Token::LD_RG_RG(dst, src) => format!("LD {},{}", self.format_reg(dst, inst), self.format_reg(src, inst)),
+            Token::LD_RG_N(reg) => format!("LD {},{}", self.format_reg(reg, inst), self.format_operand(inst)),
             Token::LD_A_AtRP(rpair) => format!("LD A,({})", self.format_regpair(rpair)),
-            Token::LD_MM_RP(rpair) => format!("LD ({}),{}", self.format_operand(inst), self.format_regpair(rpair)),
-            Token::LD_RP_MM(rpair) => format!("LD {},({})", self.format_regpair(rpair), self.format_operand(inst)),
-            Token::LD_MM_A => format!("LD ({}),A", self.format_operand(inst)),
+            Token::LD_AtRP_A(rpair) => format!("LD ({}),A", self.format_regpair(rpair)),
             Token::LD_A_MM => format!("LD A,({})", self.format_operand(inst)),
-            Token::INC_RP(rpair) => format!("INC {}", self.format_regpair(rpair)),
-            Token::DEC_RP(rpair) => format!("DEC {}", self.format_regpair(rpair)),
+            Token::LD_MM_A => format!("LD ({}),A", self.format_operand(inst)),
+
+            // 16-bit Load
+            Token::LD_RP_NN(rpair) => format!("LD {},{}", self.format_regpair(rpair), self.format_operand(inst)),
+            Token::LD_RP_MM(rpair) => format!("LD {},({})", self.format_regpair(rpair), self.format_operand(inst)),
+            Token::LD_MM_RP(rpair) => format!("LD ({}),{}", self.format_operand(inst), self.format_regpair(rpair)),
+            Token::LD_SP_RP(rpair) => format!("LD SP,{}", self.format_regpair(rpair)),
+            Token::POP(rpair) => format!("POP {}", self.format_regpair(rpair)),
+            Token::PUSH(rpair) => format!("PUSH {}", self.format_regpair(rpair)),
+
+            // Exchange
+            Token::EX_DE_HL => String::from("EX DE,HL"),
+            Token::EX_AF => String::from("EX AF,AF'"),
+            Token::EXX => String::from("EXX"),
+            Token::EX_AtSP_RP(rpair) => format!("EX (SP),{}", self.format_regpair(rpair)),
+
+            // 8-bit arithmetic and logic
+            Token::ALU_N(alu_op) => self.format_alu_op(alu_op, &self.format_operand(inst)),
+            Token::ALU_RG(alu_op, reg) => self.format_alu_op(alu_op, &self.format_reg(reg, inst)),
             Token::INC_RG(reg) => format!("INC {}", self.format_reg(reg, inst)),
             Token::DEC_RG(reg) => format!("DEC {}", self.format_reg(reg, inst)),
-            Token::LD_RG_N(reg) => format!("LD {},{}", self.format_reg(reg, inst), self.format_operand(inst)),
-            Token::RLCA => String::from("RLCA"),
-            Token::RRCA => String::from("RRCA"),
-            Token::RLA => String::from("RLA"),
-            Token::RRA => String::from("RRA"),
+
+            // General-Purpose Arithmetic and CPU Control
             Token::DAA => String::from("DAA"),
             Token::CPL => String::from("CPL"),
-            Token::SCF => String::from("SCF"),
+            Token::NEG => String::from("NEG"),
             Token::CCF => String::from("CCF"),
-            Token::RET(cond) => match cond {
-                Condition::None => String::from("RET"),
-                _ => format!("RET {}", self.format_condition(cond))
+            Token::SCF => String::from("SCF"),
+            Token::NOP => String::from("NOP"),
+            Token::HALT => String::from("HALT"),
+            Token::DI => String::from("DI"),
+            Token::EI => String::from("EI"),
+            Token::IM(mode) => format!("IM {}", match mode {
+                IntMode::IM0 | IntMode::IM01 => "0",
+                IntMode::IM1 => "1",
+                IntMode::IM2 => "2",
+            }),
+
+            // 16-Bit Arithmetic
+            Token::ADD_RP_RP(dst, src) => format!("ADD {},{}", self.format_regpair(dst), self.format_regpair(src)),
+            Token::ADC_HL_RP(rpair) => format!("ADC HL,{}", self.format_regpair(rpair)),
+            Token::SBC_HL_RP(rpair) => format!("SBC HL,{}", self.format_regpair(rpair)),
+            Token::INC_RP(rpair) => format!("INC {}", self.format_regpair(rpair)),
+            Token::DEC_RP(rpair) => format!("DEC {}", self.format_regpair(rpair)),
+
+            // Rotate and Shift
+            Token::RLCA => String::from("RLCA"),
+            Token::RLA => String::from("RLA"),
+            Token::RRCA => String::from("RRCA"),
+            Token::RRA => String::from("RRA"),
+            Token::SHOP(op, reg) => match op {
+                ShiftOp::RLC => format!("RLC {}", self.format_reg(reg, inst)),
+                ShiftOp::RRC => format!("RRC {}", self.format_reg(reg, inst)),
+                ShiftOp::RL => format!("RL {}", self.format_reg(reg, inst)),
+                ShiftOp::RR => format!("RR {}", self.format_reg(reg, inst)),
+                ShiftOp::SLA => format!("SLA {}", self.format_reg(reg, inst)),
+                ShiftOp::SRA => format!("SRA {}", self.format_reg(reg, inst)),
+                ShiftOp::SLL => format!("SLL {}", self.format_reg(reg, inst)),
+                ShiftOp::SRL => format!("SRL {}", self.format_reg(reg, inst)),
             },
-            Token::POP(rpair) => format!("POP {}", self.format_regpair(rpair)),
-            Token::EXX => String::from("EXX"),
-            Token::JP_RP(rpair) => format!("JP ({})", self.format_regpair(rpair)),
-            Token::LD_SP_RP(rpair) => format!("LD SP,{}", self.format_regpair(rpair)),
+            Token::RLD => String::from("RLD"),
+            Token::RRD => String::from("RRD"),
+            Token::SHOPLD(op, reg, dst_reg) => match op {
+                ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::RL => format!("RL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::RR => format!("RR {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::SLA => format!("SLA {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+                ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+            },
+
+            // Bit Set, Reset and Test
+            Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg, inst)),
+            Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg, inst)),
+            Token::SETLD(bit, reg, dst_reg) => format!(
+                "SET {},{},{}",
+                bit, self.format_reg(reg, inst), self.format_reg(dst_reg, inst)
+            ),
+            Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg, inst)),
+            Token::RESLD(bit, reg, dst_reg) => format!(
+                "RES {},{},{}",
+                bit, self.format_reg(reg, inst), self.format_reg(dst_reg, inst)
+            ),
+
+            // Jump, Call and Return
             Token::JP(cond) => match cond {
                 Condition::None => format!("JP {}", self.format_operand(inst)),
                 _ => format!("JP {},{}", self.format_condition(cond), self.format_operand(inst))
             },
-            Token::OUT_N_A => format!("OUT ({}),A", self.format_operand(inst)),
-            Token::IN_A_N => format!("IN A,({})", self.format_operand(inst)),
-            Token::EX_AtSP_RP(rpair) => format!("EX (SP),{}", self.format_regpair(rpair)),
-            Token::EX_DE_HL => String::from("EX DE,HL"),
-            Token::DI => String::from("DI"),
-            Token::EI => String::from("EI"),
+            Token::JP_RP(rpair) => format!("JP ({})", self.format_regpair(rpair)),
+            Token::JR(cond) => match cond {
+                Condition::None => format!("JR {}", self.format_addr_offset(inst)),
+                _ => format!("JR {},{}", self.format_condition(cond), self.format_addr_offset(inst))
+            },
+            Token::DJNZ => format!("DJNZ {}", self.format_addr_offset(inst)),
             Token::CALL(cond) => match cond {
                 Condition::None => format!("CALL {}", self.format_operand(inst)),
                 _ => format!("CALL {},{}", self.format_condition(cond), self.format_operand(inst))
             },
-            Token::PUSH(rpair) => format!("PUSH {}", self.format_regpair(rpair)),
-            Token::ALU_N(alu_op) => self.format_alu_op(alu_op, &self.format_operand(inst)),
-            Token::RST(value) => format!("RST {}", self.format_byte(value * 8)),
-            Token::HALT => String::from("HALT"),
-            Token::LD_RG_RG(dst, src) => format!("LD {},{}", self.format_reg(dst, inst), self.format_reg(src, inst)),
-            Token::ALU_RG(alu_op, reg) => self.format_alu_op(alu_op, &self.format_reg(reg, inst)),
-            Token::IN_RG_AtBC(reg) => format!("IN {},(C)", self.format_reg(reg, inst)),
-            Token::IN_AtBC => String::from("IN (C)"),
-            Token::OUT_AtBC_RG(reg) => format!("OUT (C),{}", self.format_reg(reg, inst)),
-            Token::OUT_AtBC_0 => String::from("OUT (C),0"),
-            Token::SBC_HL_RP(rpair) => format!("SBC HL,{}", self.format_regpair(rpair)),
-            Token::ADC_HL_RP(rpair) => format!("ADC HL,{}", self.format_regpair(rpair)),
-            Token::NEG => String::from("NEG"),
-            Token::RETN => String::from("RETN"),
+            Token::RET(cond) => match cond {
+                Condition::None => String::from("RET"),
+                _ => format!("RET {}", self.format_condition(cond))
+            },
             Token::RETI => String::from("RETI"),
-            Token::IM(mode) => format!("IM {}", match mode {
-                IntMode::IM0 => "0",
-                IntMode::IM01 => "0/1",
-                IntMode::IM1 => "1",
-                IntMode::IM2 => "2",
-            }),
-            Token::RRD => String::from("RRD"),
-            Token::RLD => String::from("RLD"),
-            Token::BLOP(block_op) => String::from(match block_op {
+            Token::RETN => String::from("RETN"),
+            Token::RST(value) => format!("RST {}", self.format_byte(value * 8)),
+
+            // IO
+            Token::IN_A_N => format!("IN A,({})", self.format_operand(inst)),
+            Token::OUT_N_A => format!("OUT ({}),A", self.format_operand(inst)),
+            Token::IN_RG_AtBC(reg) => format!("IN {},(C)", self.format_reg(reg, inst)),
+            Token::OUT_AtBC_RG(reg) => format!("OUT (C),{}", self.format_reg(reg, inst)),
+            Token::IN_AtBC => String::from("IN (C)"),
+            Token::OUT_AtBC_0 => String::from("OUT (C),0"),
+
+            // Block transfer, search and IO
+            Token::BLOP(op) => String::from(match op {
                 BlockOp::LDI => "LDI",
                 BlockOp::CPI => "CPI",
                 BlockOp::INI => "INI",
@@ -155,21 +206,8 @@ impl Formatter {
                 BlockOp::INDR => "INDR",
                 BlockOp::OTDR => "OTDR",
             }),
-            Token::SHOP(shift_op, reg) => match shift_op {
-                ShiftOp::RLC => format!("RLC {}", self.format_reg(reg, inst)),
-                ShiftOp::RRC => format!("RRC {}", self.format_reg(reg, inst)),
-                ShiftOp::RL => format!("RL {}", self.format_reg(reg, inst)),
-                ShiftOp::RR => format!("RR {}", self.format_reg(reg, inst)),
-                ShiftOp::SLA => format!("SLA {}", self.format_reg(reg, inst)),
-                ShiftOp::SRA => format!("SRA {}", self.format_reg(reg, inst)),
-                ShiftOp::SLL => format!("SLL {}", self.format_reg(reg, inst)),
-                ShiftOp::SRL => format!("SRL {}", self.format_reg(reg, inst)),
-            },
-            Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg, inst)),
-            Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg, inst)),
-            Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg, inst)),
 
-            _ => unreachable!()
+            other => unreachable!("{:?}", other)
 
         }
 
@@ -185,7 +223,7 @@ impl Formatter {
             Condition::PE => "PE",
             Condition::P => "P",
             Condition::M => "M",
-            _ => unreachable!("{:?}", condition)
+            other => unreachable!("{:?}", other)
         }
     }
 
@@ -198,7 +236,7 @@ impl Formatter {
             RegPair::AF => "AF",
             RegPair::IX => "IX",
             RegPair::IY => "IY",
-            _ => unreachable!("{:?}", regpair)
+            other => unreachable!("{:?}", other)
         }
     }
 
@@ -226,7 +264,7 @@ impl Formatter {
                 let offset = inst.offset.unwrap() as i32;
                 format!("(IY{})", self.format_number_with_sign(offset))
             },
-            _ => unreachable!()
+            other => unreachable!("{:?}", other)
         }
     }
 

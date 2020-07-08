@@ -224,7 +224,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                     Token::RRD => {
                         unimplemented!();
                     },
-                    Token::LDSH(dst, op, src) => {
+                    Token::SHOPLD(op, reg, dst) => {
                         unimplemented!();
                     },
 
@@ -236,13 +236,13 @@ impl<'a> Device<'a> for Cpu<'a> {
                     Token::SET(bit, reg) => {
                         unimplemented!();
                     },
-                    Token::LDSET(dst, bit, src) => {
+                    Token::SETLD(bit, reg, dst) => {
                         unimplemented!();
                     },
                     Token::RES(bit, reg) => {
                         unimplemented!();
                     },
-                    Token::LDRES(dst, bit, src) => {
+                    Token::RESLD(bit, reg, dst) => {
                         unimplemented!();
                     },
 

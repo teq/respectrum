@@ -65,14 +65,14 @@ pub enum Token {
     SHOP(ShiftOp, Reg),
     RLD,
     RRD,
-    LDSH(Reg, ShiftOp, Reg), // undocumented
+    SHOPLD(ShiftOp, Reg, Reg), // undocumented
 
     // Bit Set, Reset and Test
     BIT(u8, Reg),
     SET(u8, Reg),
-    LDSET(Reg, u8, Reg),  // undocumented
+    SETLD(u8, Reg, Reg),  // undocumented
     RES(u8, Reg),
-    LDRES(Reg, u8, Reg),  // undocumented
+    RESLD(u8, Reg, Reg),  // undocumented
 
     // Jump, Call and Return
     JP(Condition),

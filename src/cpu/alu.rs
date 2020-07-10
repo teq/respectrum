@@ -1,7 +1,3 @@
-use crate::{
-    cpu::*,
-};
-
 bitflags! {
     /// CPU flags
     pub struct Flags : u8 {
@@ -36,7 +32,7 @@ pub fn add8(lhs: u8, rhs: u8) -> (u8, Flags) {
     let (_, overflow) = (lhs as i8).overflowing_add(rhs as i8);
     let (_, hcarry) = (lhs << 4).overflowing_add(rhs << 4);
     let (result, carry) = lhs.overflowing_add(rhs);
-    let mut flags = Flags::from(result & 0x28); // mask 3 & 5 bits
+    let mut flags = Flags::from(result & 0x28); // mask bits 3 & 5
     flags.set(Flags::C, carry);
     flags.set(Flags::P, overflow);
     flags.set(Flags::H, hcarry);
@@ -50,8 +46,9 @@ pub fn sub8(lhs: u8, rhs: u8) -> (u8, Flags) {
     let (_, overflow) = (lhs as i8).overflowing_sub(rhs as i8);
     let (_, hcarry) = (lhs << 4).overflowing_sub(rhs << 4);
     let (result, carry) = lhs.overflowing_sub(rhs);
-    let mut flags = Flags::from(result & 0x28); // mask 3 & 5 bits
+    let mut flags = Flags::from(result & 0x28); // mask bits 3 & 5
     flags.set(Flags::C, carry);
+    flags.set(Flags::N, true);
     flags.set(Flags::P, overflow);
     flags.set(Flags::H, hcarry);
     flags.set(Flags::Z, result == 0);
@@ -72,8 +69,9 @@ pub fn sbc8(lhs: u8, rhs: u8, flags: Flags) -> (u8, Flags) {
 /// 8-bit logical and
 pub fn and8(lhs: u8, rhs: u8) -> (u8, Flags) {
     let result = lhs & rhs;
-    let mut flags = Flags::from(result & 0x28 | 0x10); // mask 3 & 5 bits, set 4 bit
+    let mut flags = Flags::from(result & 0x28); // mask bits 3 & 5
     flags.set(Flags::P, result.count_ones() % 2 == 0);
+    flags.set(Flags::H, true);
     flags.set(Flags::Z, result == 0);
     flags.set(Flags::S, (result as i8) < 0);
     return (result, flags);
@@ -82,7 +80,7 @@ pub fn and8(lhs: u8, rhs: u8) -> (u8, Flags) {
 /// 8-bit logical or
 pub fn or8(lhs: u8, rhs: u8) -> (u8, Flags) {
     let result = lhs | rhs;
-    let mut flags = Flags::from(result & 0x28); // mask 3 & 5 bits
+    let mut flags = Flags::from(result & 0x28); // mask bits 3 & 5
     flags.set(Flags::P, result.count_ones() % 2 == 0);
     flags.set(Flags::Z, result == 0);
     flags.set(Flags::S, (result as i8) < 0);
@@ -92,7 +90,7 @@ pub fn or8(lhs: u8, rhs: u8) -> (u8, Flags) {
 /// 8-bit logical xor
 pub fn xor8(lhs: u8, rhs: u8) -> (u8, Flags) {
     let result = lhs ^ rhs;
-    let mut flags = Flags::from(result & 0x28); // mask 3 & 5 bits
+    let mut flags = Flags::from(result & 0x28); // mask bits 3 & 5
     flags.set(Flags::P, result.count_ones() % 2 == 0);
     flags.set(Flags::Z, result == 0);
     flags.set(Flags::S, (result as i8) < 0);
@@ -104,8 +102,9 @@ pub fn cp8(lhs: u8, rhs: u8) -> Flags {
     let (_, overflow) = (lhs as i8).overflowing_sub(rhs as i8);
     let (_, hcarry) = (lhs << 4).overflowing_sub(rhs << 4);
     let (result, carry) = lhs.overflowing_sub(rhs);
-    let mut flags = Flags::from(rhs & 0x28 | 0x2); // mask 3 & 5 bits, set 1 bit
+    let mut flags = Flags::from(rhs & 0x28); // mask bits 3 & 5
     flags.set(Flags::C, carry);
+    flags.set(Flags::N, true);
     flags.set(Flags::P, overflow);
     flags.set(Flags::H, hcarry);
     flags.set(Flags::Z, result == 0);
@@ -114,27 +113,30 @@ pub fn cp8(lhs: u8, rhs: u8) -> Flags {
 }
 
 /// 8-bit increment
-pub fn inc8(val: u8, flags: Flags) -> (u8, Flags) {
-    let (_, overflow) = (val as i8).overflowing_add(1 as i8);
-    let (_, hcarry) = (val << 4).overflowing_add(1 << 4);
-    let result = val + 1;
-    let mut flags = Flags::from(flags.bits() & 0x28); // mask 3 & 5 bits
+pub fn inc8(input: u8, in_flags: Flags) -> (u8, Flags) {
+    let (_, overflow) = (input as i8).overflowing_add(1 as i8);
+    let (_, hcarry) = (input << 4).overflowing_add(1 << 4);
+    let output = input + 1;
+    let mut flags = Flags::from(output & 0x28); // mask bits 3 & 5
+    flags.set(Flags::C, in_flags.contains(Flags::C));
     flags.set(Flags::P, overflow);
     flags.set(Flags::H, hcarry);
-    flags.set(Flags::Z, result == 0);
-    flags.set(Flags::S, (result as i8) < 0);
-    return (result, flags);
+    flags.set(Flags::Z, output == 0);
+    flags.set(Flags::S, (output as i8) < 0);
+    return (output, flags);
 }
 
 /// 8-bit decrement
-pub fn dec8(val: u8, flags: Flags) -> (u8, Flags) {
-    let (_, overflow) = (val as i8).overflowing_sub(1 as i8);
-    let (_, hcarry) = (val << 4).overflowing_sub(1 << 4);
-    let result = val - 1;
-    let mut flags = Flags::from(flags.bits() & 0x28); // mask 3 & 5 bits
+pub fn dec8(input: u8, in_flags: Flags) -> (u8, Flags) {
+    let (_, overflow) = (input as i8).overflowing_sub(1 as i8);
+    let (_, hcarry) = (input << 4).overflowing_sub(1 << 4);
+    let output = input - 1;
+    let mut flags = Flags::from(output & 0x28); // mask bits 3 & 5
+    flags.set(Flags::C, in_flags.contains(Flags::C));
+    flags.set(Flags::N, true);
     flags.set(Flags::P, overflow);
     flags.set(Flags::H, hcarry);
-    flags.set(Flags::Z, result == 0);
-    flags.set(Flags::S, (result as i8) < 0);
-    return (result, flags);
+    flags.set(Flags::Z, output == 0);
+    flags.set(Flags::S, (output as i8) < 0);
+    return (output, flags);
 }

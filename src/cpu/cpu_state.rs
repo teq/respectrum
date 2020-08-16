@@ -101,6 +101,12 @@ impl CpuState {
         }
     }
 
+    /// Get CPU flags
+    pub fn get_flags(&self) -> Flags { Flags::from(self.rg(Reg::F).get()) }
+
+    /// Set CPU flags
+    pub fn set_flags(&self, flags: Flags ) { self.rg(Reg::F).set(flags.bits()) }
+
     /// Calculate absolute address for IX+d or IY+d
     pub fn idx_addr(&self, reg: Reg, offset: i8) -> u16 {
         let rpair = match reg {

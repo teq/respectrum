@@ -87,8 +87,13 @@ impl Formatter {
             Token::EX_AtSP_RP(rpair) => format!("EX (SP),{}", self.format_regpair(rpair)),
 
             // 8-bit arithmetic and logic
-            Token::ALU_N(alu_op) => self.format_alu_op(alu_op, &self.format_operand(inst)),
-            Token::ALU_RG(alu_op, reg) => self.format_alu_op(alu_op, &self.format_reg(reg, inst)),
+            Token::ALU(op, maybe_reg) => {
+                if let Some(reg) = maybe_reg {
+                    self.format_alu_op(op, &self.format_reg(reg, inst))
+                } else {
+                    self.format_alu_op(op, &self.format_operand(inst))
+                }
+            },
             Token::INC_RG(reg) => format!("INC {}", self.format_reg(reg, inst)),
             Token::DEC_RG(reg) => format!("DEC {}", self.format_reg(reg, inst)),
 
@@ -132,28 +137,28 @@ impl Formatter {
             },
             Token::RLD => String::from("RLD"),
             Token::RRD => String::from("RRD"),
-            Token::SHOPLD(op, reg, dst_reg) => match op {
-                ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::RL => format!("RL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::RR => format!("RR {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::SLA => format!("SLA {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
-                ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg, inst), self.format_reg(dst_reg, inst)),
+            Token::SHOPLD(op, reg, dst) => match op {
+                ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::RL => format!("RL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::RR => format!("RR {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::SLA => format!("SLA {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
             },
 
             // Bit Set, Reset and Test
             Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg, inst)),
             Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg, inst)),
-            Token::SETLD(bit, reg, dst_reg) => format!(
+            Token::SETLD(bit, reg, dst) => format!(
                 "SET {},{},{}",
-                bit, self.format_reg(reg, inst), self.format_reg(dst_reg, inst)
+                bit, self.format_reg(reg, inst), self.format_reg(dst, inst)
             ),
             Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg, inst)),
-            Token::RESLD(bit, reg, dst_reg) => format!(
+            Token::RESLD(bit, reg, dst) => format!(
                 "RES {},{},{}",
-                bit, self.format_reg(reg, inst), self.format_reg(dst_reg, inst)
+                bit, self.format_reg(reg, inst), self.format_reg(dst, inst)
             ),
 
             // Jump, Call and Return
@@ -268,8 +273,8 @@ impl Formatter {
         }
     }
 
-    fn format_alu_op(&self, alu_op: &AluOp, operand: &String) -> String {
-        match alu_op {
+    fn format_alu_op(&self, op: &AluOp, operand: &String) -> String {
+        match op {
             AluOp::ADD => format!("ADD A,{}", operand),
             AluOp::ADC => format!("ADC A,{}", operand),
             AluOp::SUB => format!("SUB {}", operand),

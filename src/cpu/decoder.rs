@@ -418,7 +418,7 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 // x=2
                 (2, y, z) => {
                     let reg = Reg::from(z);
-                    let opcode_token = Token::ALU_RG(AluOp::from(y), alt_reg(reg));
+                    let opcode_token = Token::ALU(AluOp::from(y), Some(alt_reg(reg)));
                     ByteDecodeResult {
                         token: if prefix.is_some() && reg == Reg::AtHL {
                             let offset_byte = yield ByteDecodeResult {
@@ -522,7 +522,7 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 // x=3, z=6
                 (3, y, 6) => {
                     let operand_byte = yield ByteDecodeResult {
-                        token: Token::ALU_N(AluOp::from(y)),
+                        token: Token::ALU(AluOp::from(y), None),
                         upnext: TokenType::Operand
                     };
                     ByteDecodeResult {

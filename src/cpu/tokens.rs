@@ -33,8 +33,7 @@ pub enum Token {
     EX_AtSP_RP(RegPair),
 
     // 8-bit arithmetic and logic
-    ALU_N(AluOp),
-    ALU_RG(AluOp, Reg),
+    ALU(AluOp, Option<Reg>),
     INC_RG(Reg),
     DEC_RG(Reg),
 

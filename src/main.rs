@@ -9,6 +9,8 @@ extern crate bitflags;
 
 pub mod bus;
 pub mod cpu;
+pub mod devs;
+pub mod misc;
 pub mod tools;
 
 use std::{

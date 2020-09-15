@@ -1,7 +1,7 @@
 use std::ops::Generator;
 
-use crate::cpu::*;
-use super::cpu_instruction::*;
+use crate::cpu::InstructionDecoder;
+use super::CpuInstruction;
 
 /// Create generator which accepts bytes and yields disassembled CPU instructions
 pub fn disassembler(mut addr: u16) -> impl Generator<u8, Yield=Option<CpuInstruction>> {

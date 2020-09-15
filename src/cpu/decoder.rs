@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     mkword,
-    cpu::tokens::*,
+    cpu::tokens::{Token, TokenType, OperandValue, Reg, RegPair, IntMode, BlockOp, ShiftOp, AluOp, Condition},
 };
 
 /// Z80 CPU instruction decoder
@@ -41,24 +41,24 @@ impl InstructionDecoder {
         self.opcode
     }
 
-    /// Expect instruction opcode to be defined
-    pub fn expect_opcode(&self) -> Token {
-        self.opcode.expect("Expecting opcode to be defined")
-    }
-
     /// Offset (displacement) value
     pub fn offset(&self) -> Option<i8> {
         self.offset
     }
 
-    /// Expect offset (displacement) value to be defined
-    pub fn expect_offset(&self) -> i8 {
-        self.offset.expect("Expecting offset to be defined")
-    }
-
     /// Operand value
     pub fn operand(&self) -> Option<OperandValue> {
         self.operand
+    }
+
+    /// Expect instruction opcode to be defined
+    pub fn expect_opcode(&self) -> Token {
+        self.opcode.expect("Expecting opcode to be defined")
+    }
+
+    /// Expect offset (displacement) value to be defined
+    pub fn expect_offset(&self) -> i8 {
+        self.offset.expect("Expecting offset to be defined")
     }
 
     /// Expect byte operand value

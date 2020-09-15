@@ -43,16 +43,16 @@ impl CpuBus {
     /// Create new CPU bus instance
     pub fn new() -> CpuBus {
         CpuBus {
-            addr:  BusLine::new("addr"),
-            data:  BusLine::new("data"),
-            ctrl:  BusLine::new("ctrl"),
-            outs:  BusLine::new("outs"),
+            addr:  BusLine::new("CPU::address_lines"),
+            data:  BusLine::new("CPU::data_lines"),
+            ctrl:  BusLine::new("CPU::control_lines"),
+            outs:  BusLine::new("CPU::output_lines"),
 
-            wait:  BusLine::new("wait"),
-            int:   BusLine::new("int"),
-            nmi:   BusLine::new("nmi"),
-            reset: BusLine::new("reset"),
-            busrq: BusLine::new("busrq"),
+            wait:  BusLine::new("CPU::wait"),
+            int:   BusLine::new("CPU::int"),
+            nmi:   BusLine::new("CPU::nmi"),
+            reset: BusLine::new("CPU::reset"),
+            busrq: BusLine::new("CPU::busrq"),
         }
     }
 

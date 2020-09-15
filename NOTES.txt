@@ -1,0 +1,4 @@
+13-07-2020
+
+It's not clear how to emulate CPI/CPD. According to docs it has the same m-cycles as LDI/LDD,
+but does it actually write to memory on the last m-cycle as CPI/CPD does?

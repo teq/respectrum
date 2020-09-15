@@ -1,13 +1,10 @@
-pub mod alu;
-
 mod cpu;
 pub use cpu::Cpu;
 
-mod cpu_state;
-pub use cpu_state::CpuState;
-
 mod decoder;
-pub use decoder::*;
+pub use decoder::InstructionDecoder;
 
-mod tokens;
-pub use tokens::*;
+mod flags;
+pub use flags::Flags;
+
+pub mod tokens;

@@ -23,8 +23,8 @@ fn disassembler_recognizes_all_z80_opcodes() {
     // Disassembler to test
     let mut disassembler = tools::disassembler(current_addr);
 
-    // Mnemonic formatter
-    let formatter: tools::Formatter = Default::default();
+    // Instruction formatter
+    let formatter: tools::InstructionFormatter = Default::default();
 
     // Iterate over listing lines
     while let Some((line_idx, Ok(line))) = lines.next() {

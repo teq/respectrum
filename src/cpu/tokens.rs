@@ -7,8 +7,8 @@ pub enum Token {
 
     // Non-opcode tokens
     Prefix(u16),
-    Offset(i8),
-    Operand(OperandValue),
+    Displacement(i8),
+    Data(DataValue),
 
     // 8-bit Load
     LD_RG_RG(Reg, Reg),
@@ -115,12 +115,12 @@ pub enum MCycle {
     MWH,
     /// Memory Write of Low Byte
     MWL,
-    /// Operand Data Read
-    OD,
-    /// Operand Data Read of High Byte
-    ODH,
-    /// Operand Data Read of Low Byte
-    ODL,
+    /// Immediate Data Read
+    ID,
+    /// Immediate Data Read of High Byte
+    IDH,
+    /// Immediate Data Read of Low Byte
+    IDL,
     /// Port Read
     PR,
     /// Port Write
@@ -139,15 +139,15 @@ pub enum MCycle {
 pub enum TokenType {
     /// Actual opcode or opcode prefix
     Opcode,
-    /// Offset (or displacement) byte
-    Offset,
-    /// Operand (immediate data) byte
-    Operand
+    /// Displacement byte
+    Displacement,
+    /// Immediate data
+    Data
 }
 
-/// Opcode operand value
+/// Opcode immediate data value
 #[derive(Debug, Clone, Copy)]
-pub enum OperandValue {
+pub enum DataValue {
     Byte(u8),
     Word(u16)
 }

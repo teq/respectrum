@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     mkword,
-    cpu::tokens::{Token, TokenType, OperandValue, Reg, RegPair, IntMode, BlockOp, ShiftOp, AluOp, Condition},
+    cpu::tokens::{Token, TokenType, DataValue, Reg, RegPair, IntMode, BlockOp, ShiftOp, AluOp, Condition},
 };
 
 /// Z80 CPU instruction decoder
@@ -13,8 +13,8 @@ pub struct InstructionDecoder {
     byte_decoder: Box<dyn Generator<u8, Yield=ByteDecodeResult, Return=ByteDecodeResult> + Unpin>,
     upnext: TokenType,
     opcode: Option<Token>,
-    offset: Option<i8>,
-    operand: Option<OperandValue>,
+    displacement: Option<i8>,
+    data: Option<DataValue>,
 }
 
 impl InstructionDecoder {
@@ -25,8 +25,8 @@ impl InstructionDecoder {
             byte_decoder: Box::new(byte_decoder()),
             upnext: TokenType::Opcode,
             opcode: None,
-            offset: None,
-            operand: None,
+            displacement: None,
+            data: None,
         }
     }
 
@@ -41,14 +41,14 @@ impl InstructionDecoder {
         self.opcode
     }
 
-    /// Offset (displacement) value
-    pub fn offset(&self) -> Option<i8> {
-        self.offset
+    /// Displacement byte value
+    pub fn displacement(&self) -> Option<i8> {
+        self.displacement
     }
 
-    /// Operand value
-    pub fn operand(&self) -> Option<OperandValue> {
-        self.operand
+    /// Immediate data value
+    pub fn data(&self) -> Option<DataValue> {
+        self.data
     }
 
     /// Expect instruction opcode to be defined
@@ -56,24 +56,24 @@ impl InstructionDecoder {
         self.opcode.expect("Expecting opcode to be defined")
     }
 
-    /// Expect offset (displacement) value to be defined
-    pub fn expect_offset(&self) -> i8 {
-        self.offset.expect("Expecting offset to be defined")
+    /// Expect displacement byte to be defined
+    pub fn expect_displacement(&self) -> i8 {
+        self.displacement.expect("Expecting displacement byte to be defined")
     }
 
-    /// Expect byte operand value
-    pub fn expect_byte_operand(&self) -> u8 {
-        match self.operand {
-            Some(OperandValue::Byte(value)) => value,
-            _ => panic!("Expecting byte operand")
+    /// Expect immediate data to be byte
+    pub fn expect_byte_data(&self) -> u8 {
+        match self.data {
+            Some(DataValue::Byte(value)) => value,
+            _ => panic!("Expecting immediate data to be byte")
         }
     }
 
-    /// Expect word operand value
-    pub fn expect_word_operand(&self) -> u16 {
-        match self.operand {
-            Some(OperandValue::Word(value)) => value,
-            _ => panic!("Expecting word operand")
+    /// Expect immediate data to be word
+    pub fn expect_word_data(&self) -> u16 {
+        match self.data {
+            Some(DataValue::Word(value)) => value,
+            _ => panic!("Expecting immediate data to be word")
         }
     }
 
@@ -85,8 +85,8 @@ impl InstructionDecoder {
         match state {
             GeneratorState::Yielded(result) | GeneratorState::Complete(result) => match result.token {
                 Token::Prefix(_) => (),
-                Token::Offset(value) => self.offset = Some(value),
-                Token::Operand(value) => self.operand = Some(value),
+                Token::Displacement(value) => self.displacement = Some(value),
+                Token::Data(value) => self.data = Some(value),
                 token => self.opcode = Some(token)
             }
         }
@@ -132,7 +132,7 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
         {
             // Z80 opcode may have multiple (possibly) duplicate and overriding each other prefixes.
             // Here we try to interpret incoming bytes as prefix bytes until we reach actual opcode
-            // or offset (aka displacement) byte
+            // or displacement byte
             let mut decoder = prefix_decoder();
             while let GeneratorState::Yielded(result) = Pin::new(&mut decoder).resume(byte) {
                 if let ByteDecodeResult { token: Token::Prefix(code), .. } = result {
@@ -193,20 +193,20 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 },
                 (1, _, 3) => {
                     let (p, q) = (get_p(byte), get_q(byte));
-                    let low_operand_byte = yield ByteDecodeResult {
+                    let low_data_byte = yield ByteDecodeResult {
                         token: if q == 0 {
                             Token::LD_MM_RP(RegPair::from(p).prefer_sp())
                         } else {
                             Token::LD_RP_MM(RegPair::from(p).prefer_sp())
                         },
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
-                    let high_operand_byte = yield ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(low_operand_byte)),
-                        upnext: TokenType::Operand
+                    let high_data_byte = yield ByteDecodeResult {
+                        token: Token::Data(DataValue::Byte(low_data_byte)),
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
+                        token: Token::Data(DataValue::Word(mkword!(high_data_byte, low_data_byte))),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -242,8 +242,8 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
             },
 
             Some(0xcbdd) | Some(0xcbfd) => {
-                // First byte after DDCB/FDCB is an offset and then opcode
-                byte = yield ByteDecodeResult { token: Token::Offset(byte as i8), upnext: TokenType::Opcode };
+                // First byte after DDCB/FDCB is a displacement byte and then opcode follows
+                byte = yield ByteDecodeResult { token: Token::Displacement(byte as i8), upnext: TokenType::Opcode };
                 ByteDecodeResult {
                     token: match (get_x(byte), get_y(byte), get_z(byte)) {
                         (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL)),
@@ -265,15 +265,15 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (0, 0, 0) => ByteDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
                 (0, 1, 0) => ByteDecodeResult { token: Token::EX_AF, upnext: TokenType::Opcode },
                 (0, y, 0) => {
-                    let offset_byte = yield ByteDecodeResult {
+                    let displacement_byte = yield ByteDecodeResult {
                         token: match y {
                             2 => Token::DJNZ,
                             3 => Token::JR(Condition::None),
                             _ => Token::JR(Condition::from(y & 0b11))
                         },
-                        upnext: TokenType::Offset
+                        upnext: TokenType::Displacement
                     };
-                    ByteDecodeResult { token: Token::Offset(offset_byte as i8), upnext: TokenType::Opcode }
+                    ByteDecodeResult { token: Token::Displacement(displacement_byte as i8), upnext: TokenType::Opcode }
                 },
 
                 // x=0, z=1
@@ -281,15 +281,15 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                     let p = get_p(byte);
                     ByteDecodeResult {
                         token: if get_q(byte) == 0 {
-                            let low_operand_byte = yield ByteDecodeResult {
+                            let low_data_byte = yield ByteDecodeResult {
                                 token: Token::LD_RP_NN(alt_rpair(RegPair::from(p).prefer_sp())),
-                                upnext: TokenType::Operand
+                                upnext: TokenType::Data
                             };
-                            let high_operand_byte = yield ByteDecodeResult {
-                                token: Token::Operand(OperandValue::Byte(low_operand_byte)),
-                                upnext: TokenType::Operand
+                            let high_data_byte = yield ByteDecodeResult {
+                                token: Token::Data(DataValue::Byte(low_data_byte)),
+                                upnext: TokenType::Data
                             };
-                            Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte)))
+                            Token::Data(DataValue::Word(mkword!(high_data_byte, low_data_byte)))
                         } else {
                             Token::ADD_RP_RP(alt_rpair(RegPair::HL), alt_rpair(RegPair::from(p).prefer_sp()))
                         },
@@ -303,7 +303,7 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (0, 2, 2) => ByteDecodeResult { token: Token::LD_AtRP_A(RegPair::DE), upnext: TokenType::Opcode },
                 (0, 3, 2) => ByteDecodeResult { token: Token::LD_A_AtRP(RegPair::DE), upnext: TokenType::Opcode },
                 (0, y, 2) => {
-                    let low_operand_byte = yield ByteDecodeResult {
+                    let low_data_byte = yield ByteDecodeResult {
                         token: match y {
                             4 => Token::LD_MM_RP(alt_rpair(RegPair::HL)),
                             5 => Token::LD_RP_MM(alt_rpair(RegPair::HL)),
@@ -311,14 +311,14 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                             7 => Token::LD_A_MM,
                             _ => unreachable!()
                         },
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
-                    let high_operand_byte = yield ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(low_operand_byte)),
-                        upnext: TokenType::Operand
+                    let high_data_byte = yield ByteDecodeResult {
+                        token: Token::Data(DataValue::Byte(low_data_byte)),
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
+                        token: Token::Data(DataValue::Word(mkword!(high_data_byte, low_data_byte))),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -343,11 +343,11 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                     };
                     ByteDecodeResult {
                         token: if prefix.is_some() && reg == Reg::AtHL {
-                            let offset_byte = yield ByteDecodeResult {
+                            let displacement_byte = yield ByteDecodeResult {
                                 token: opcode_token,
-                                upnext: TokenType::Offset
+                                upnext: TokenType::Displacement
                             };
-                            Token::Offset(offset_byte as i8)
+                            Token::Displacement(displacement_byte as i8)
                         } else {
                             opcode_token
                         },
@@ -359,20 +359,20 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (0, y, 6) => {
                     let reg = Reg::from(y);
                     let opcode_token = Token::LD_RG_N(alt_reg(reg));
-                    let operand_byte = yield ByteDecodeResult {
+                    let data_byte = yield ByteDecodeResult {
                         token: if prefix.is_some() && reg == Reg::AtHL {
-                            let offset_byte = yield ByteDecodeResult {
+                            let displacement_byte = yield ByteDecodeResult {
                                 token: opcode_token,
-                                upnext: TokenType::Offset
+                                upnext: TokenType::Displacement
                             };
-                            Token::Offset(offset_byte as i8)
+                            Token::Displacement(displacement_byte as i8)
                         } else {
                             opcode_token
                         },
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(operand_byte)),
+                        token: Token::Data(DataValue::Byte(data_byte)),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -403,11 +403,11 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                     };
                     ByteDecodeResult {
                         token: if prefix.is_some() && (dst_reg == Reg::AtHL || src_reg == Reg::AtHL) {
-                            let offset_byte = yield ByteDecodeResult {
+                            let displacement_byte = yield ByteDecodeResult {
                                 token: opcode_token,
-                                upnext: TokenType::Offset
+                                upnext: TokenType::Displacement
                             };
-                            Token::Offset(offset_byte as i8)
+                            Token::Displacement(displacement_byte as i8)
                         } else {
                             opcode_token
                         },
@@ -421,11 +421,11 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                     let opcode_token = Token::ALU(AluOp::from(y), Some(alt_reg(reg)));
                     ByteDecodeResult {
                         token: if prefix.is_some() && reg == Reg::AtHL {
-                            let offset_byte = yield ByteDecodeResult {
+                            let displacement_byte = yield ByteDecodeResult {
                                 token: opcode_token,
-                                upnext: TokenType::Offset
+                                upnext: TokenType::Displacement
                             };
-                            Token::Offset(offset_byte as i8)
+                            Token::Displacement(displacement_byte as i8)
                         } else {
                             opcode_token
                         },
@@ -461,16 +461,16 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 // x=3, z=2 &
                 // x=3, y=0, z=3
                 (3, y, z @ 2) | (3, y @ 0, z @ 3) => {
-                    let low_operand_byte = yield ByteDecodeResult {
+                    let low_data_byte = yield ByteDecodeResult {
                         token: Token::JP(if z == 2 { Condition::from(y) } else { Condition::None }),
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
-                    let high_operand_byte = yield ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(low_operand_byte)),
-                        upnext: TokenType::Operand
+                    let high_data_byte = yield ByteDecodeResult {
+                        token: Token::Data(DataValue::Byte(low_data_byte)),
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
+                        token: Token::Data(DataValue::Word(mkword!(high_data_byte, low_data_byte))),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -479,10 +479,10 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                 (3, y @ (2 | 3), 3) => {
                     let port_byte = yield ByteDecodeResult {
                         token: if y == 2 { Token::OUT_N_A } else { Token::IN_A_N },
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(port_byte)),
+                        token: Token::Data(DataValue::Byte(port_byte)),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -504,16 +504,16 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
                             upnext: TokenType::Opcode
                         }
                     } else {
-                        let low_operand_byte = yield ByteDecodeResult {
+                        let low_data_byte = yield ByteDecodeResult {
                             token: Token::CALL(if z == 4 { Condition::from(y) } else { Condition::None }),
-                            upnext: TokenType::Operand
+                            upnext: TokenType::Data
                         };
-                        let high_operand_byte = yield ByteDecodeResult {
-                            token: Token::Operand(OperandValue::Byte(low_operand_byte)),
-                            upnext: TokenType::Operand
+                        let high_data_byte = yield ByteDecodeResult {
+                            token: Token::Data(DataValue::Byte(low_data_byte)),
+                            upnext: TokenType::Data
                         };
                         ByteDecodeResult {
-                            token: Token::Operand(OperandValue::Word(mkword!(high_operand_byte, low_operand_byte))),
+                            token: Token::Data(DataValue::Word(mkword!(high_data_byte, low_data_byte))),
                             upnext: TokenType::Opcode
                         }
                     }
@@ -521,12 +521,12 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
 
                 // x=3, z=6
                 (3, y, 6) => {
-                    let operand_byte = yield ByteDecodeResult {
+                    let data_byte = yield ByteDecodeResult {
                         token: Token::ALU(AluOp::from(y), None),
-                        upnext: TokenType::Operand
+                        upnext: TokenType::Data
                     };
                     ByteDecodeResult {
-                        token: Token::Operand(OperandValue::Byte(operand_byte)),
+                        token: Token::Data(DataValue::Byte(data_byte)),
                         upnext: TokenType::Opcode
                     }
                 },
@@ -561,7 +561,7 @@ fn prefix_decoder() -> impl Generator<u8, Yield=ByteDecodeResult> {
                 // CB & ED are always followed by opcode byte
                 Some(0xcb) | Some(0xed) => return,
 
-                // DDCB & FDCB are always followed by offset (aka displacement) byte
+                // DDCB & FDCB are always followed by displacement byte
                 Some(0xcbdd) | Some(0xcbfd) => return,
 
                 Some(val) if (val == 0xdd || val == 0xfd) => match byte {
@@ -570,7 +570,7 @@ fn prefix_decoder() -> impl Generator<u8, Yield=ByteDecodeResult> {
                     0xed | 0xdd | 0xfd => (byte as u16, TokenType::Opcode),
 
                     // DD or FD followed by CB gives DDCB or FDCB
-                    0xcb => (mkword!(byte, val), TokenType::Offset),
+                    0xcb => (mkword!(byte, val), TokenType::Displacement),
 
                     // Otherwise it is followed by opcode
                     _ => return

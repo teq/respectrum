@@ -62,7 +62,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                     // Read next byte using appropriate M-cycle
                     let byte: u8 = match decoder.upnext() {
                         TokenType::Opcode => yield_task!(self.opcode_read(pc)),
-                        TokenType::Offset | TokenType::Operand => yield_task!(self.memory_read(pc))
+                        TokenType::Displacement | TokenType::Data => yield_task!(self.memory_read(pc))
                     };
 
                     // Decode byte
@@ -79,12 +79,12 @@ impl<'a> Device<'a> for Cpu<'a> {
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(dst, decoder.expect_offset());
+                        let addr = self.idx_addr(dst, decoder.expect_displacement());
                         yield_task!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(src, decoder.expect_offset());
+                        let addr = self.idx_addr(src, decoder.expect_displacement());
                         self.rg(dst).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
@@ -114,10 +114,10 @@ impl<'a> Device<'a> for Cpu<'a> {
                     },
                     Token::LD_RG_N(Reg::AtHL) => {
                         let addr = self.rp(RegPair::HL).get();
-                        yield_task!(self.memory_write(addr, decoder.expect_byte_operand()));
+                        yield_task!(self.memory_write(addr, decoder.expect_byte_data()));
                     },
                     Token::LD_RG_N(reg) => {
-                        self.rg(reg).set(decoder.expect_byte_operand());
+                        self.rg(reg).set(decoder.expect_byte_data());
                     },
                     Token::LD_A_AtRP(rpair) => {
                         let addr = self.rp(rpair).get();
@@ -128,27 +128,27 @@ impl<'a> Device<'a> for Cpu<'a> {
                         yield_task!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::LD_A_MM => {
-                        let addr = decoder.expect_word_operand();
+                        let addr = decoder.expect_word_data();
                         self.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
                     },
                     Token::LD_MM_A => {
-                        let addr = decoder.expect_word_operand();
+                        let addr = decoder.expect_word_data();
                         yield_task!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
 
                     // 16-bit Load
 
                     Token::LD_RP_NN(rpair) => {
-                        self.rp(rpair).set(decoder.expect_word_operand());
+                        self.rp(rpair).set(decoder.expect_word_data());
                     },
                     Token::LD_RP_MM(rpair) => {
-                        let addr = decoder.expect_word_operand();
+                        let addr = decoder.expect_word_data();
                         let lo = yield_task!(self.memory_read(addr));
                         let hi = yield_task!(self.memory_read(addr + 1));
                         self.rp(rpair).set(mkword!(hi, lo));
                     },
                     Token::LD_MM_RP(rpair) => {
-                        let addr = decoder.expect_word_operand();
+                        let addr = decoder.expect_word_data();
                         let (hi, lo) = spword!(self.rp(rpair).get());
                         yield_task!(self.memory_write(addr, lo));
                         yield_task!(self.memory_write(addr + 1, hi));
@@ -208,7 +208,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                         let rhs = if let Some(reg) = maybe_reg {
                             self.rg(reg).get()
                         } else {
-                            decoder.expect_byte_operand()
+                            decoder.expect_byte_data()
                         };
                         let mut flags = self.get_flags() & Flags::C;
                         let result = match op {
@@ -438,11 +438,11 @@ impl<'a> Device<'a> for Cpu<'a> {
                     // IO group
 
                     Token::IN_A_N => {
-                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_operand());
+                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
                         self.rg(Reg::A).set(yield_task!(self.io_read(addr)));
                     },
                     Token::OUT_N_A => {
-                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_operand());
+                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
                         yield_task!(self.io_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::IN_RG_AtBC(reg) => {
@@ -472,7 +472,7 @@ impl<'a> Device<'a> for Cpu<'a> {
 
                     // Non-opcode is not expected
 
-                    Token::Prefix(_) | Token::Offset(_) | Token::Operand(_) => unreachable!()
+                    Token::Prefix(_) | Token::Displacement(_) | Token::Data(_) => unreachable!()
 
                 }
 
@@ -551,13 +551,13 @@ impl<'a> Cpu<'a> {
     }
 
     /// Calculate absolute address for IX+d or IY+d
-    fn idx_addr(&self, reg: Reg, offset: i8) -> u16 {
+    fn idx_addr(&self, reg: Reg, displacement: i8) -> u16 {
         let rpair = match reg {
             Reg::AtIX => RegPair::IX,
             Reg::AtIY => RegPair::IY,
             _ => panic!("Expecting (IX+d) or (IY+d), got: {:#?}", reg)
         };
-        let addr = self.rp(rpair).get() as i32 + offset as i32;
+        let addr = self.rp(rpair).get() as i32 + displacement as i32;
         return addr as u16;
     }
 

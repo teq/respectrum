@@ -28,8 +28,8 @@ pub fn disassembler(mut addr: u16) -> impl Generator<u8, Yield=Option<CpuInstruc
             byte = yield Some(CpuInstruction {
                 addr, len, bytes,
                 opcode: decoder.expect_opcode(),
-                offset: decoder.offset(),
-                operand: decoder.operand()
+                displacement: decoder.displacement(),
+                data: decoder.data()
             });
 
             addr += len as u16;

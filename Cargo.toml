@@ -8,6 +8,15 @@ repository = "https://github.com/rust-lang/cargo/"
 license = "MIT"
 keywords = ["zx", "spectrum", "emulator"]
 categories = ["emulators"]
+default-run = "emul"
+
+[[bin]]
+name = "disasm"
+path = "src/disasm.rs"
+
+[[bin]]
+name = "emul"
+path = "src/emul.rs"
 
 [dependencies]
 bitflags = "1.2.1"

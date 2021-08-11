@@ -31,7 +31,7 @@ impl InstructionDecoder {
     }
 
     /// Expected type for the next token. It allows to decide
-    /// which M-cycle to use to process next byte
+    /// which M-cycle to use to process the next byte
     pub fn upnext(&self) -> TokenType {
         self.upnext
     }
@@ -61,19 +61,19 @@ impl InstructionDecoder {
         self.displacement.expect("Expecting displacement byte to be defined")
     }
 
-    /// Expect immediate data to be byte
+    /// Expect immediate data to be a byte
     pub fn expect_byte_data(&self) -> u8 {
         match self.data {
             Some(DataValue::Byte(value)) => value,
-            _ => panic!("Expecting immediate data to be byte")
+            _ => panic!("Expecting immediate data to be a byte")
         }
     }
 
-    /// Expect immediate data to be word
+    /// Expect immediate data to be a word
     pub fn expect_word_data(&self) -> u16 {
         match self.data {
             Some(DataValue::Word(value)) => value,
-            _ => panic!("Expecting immediate data to be word")
+            _ => panic!("Expecting immediate data to be a word")
         }
     }
 
@@ -133,8 +133,8 @@ fn byte_decoder() -> impl Generator<u8, Yield=ByteDecodeResult, Return=ByteDecod
             // Z80 opcode may have multiple (possibly) duplicate and overriding each other prefixes.
             // Here we try to interpret incoming bytes as prefix bytes until we reach actual opcode
             // or displacement byte
-            let mut decoder = prefix_decoder();
-            while let GeneratorState::Yielded(result) = Pin::new(&mut decoder).resume(byte) {
+            let mut pdecoder = prefix_decoder();
+            while let GeneratorState::Yielded(result) = Pin::new(&mut pdecoder).resume(byte) {
                 if let ByteDecodeResult { token: Token::Prefix(code), .. } = result {
                     prefix = Some(code);
                 }
@@ -564,7 +564,7 @@ fn prefix_decoder() -> impl Generator<u8, Yield=ByteDecodeResult> {
                 // DDCB & FDCB are always followed by displacement byte
                 Some(0xcbdd) | Some(0xcbfd) => return,
 
-                Some(val) if (val == 0xdd || val == 0xfd) => match byte {
+                Some(val @ (0xdd | 0xfd)) => match byte {
 
                     // If DD or FD followed by DD, ED or FD we should ignore former prefix
                     0xed | 0xdd | 0xfd => (byte as u16, TokenType::Opcode),

@@ -1,6 +1,7 @@
 use super::BusLine;
 
 bitflags! {
+    #[derive(Default)]
     pub struct Ctls : u8 {
         const NONE = 0;
         const MREQ = 1 << 0;
@@ -11,6 +12,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Default)]
     pub struct Outs : u8 {
         const NONE  = 0;
         const M1    = 1 << 0;
@@ -21,39 +23,33 @@ bitflags! {
 }
 
 /// Z80 CPU bus
+#[derive(Default)]
 pub struct CpuBus {
     /// Address bus (tri-state outputs)
-    pub addr:  BusLine<u16>,
+    pub addr: BusLine<u16>,
     /// Data bus (tri-state in/outputs)
-    pub data:  BusLine<u8>,
+    pub data: BusLine<u8>,
     /// Tri-state control outputs: MREQ, IORQ, RD, WR
-    pub ctrl:  BusLine<Ctls>,
+    pub ctrl: BusLine<Ctls>,
     /// Control outputs: M1, RFSH, HALT, BUSAK
-    pub outs:  BusLine<Outs>,
-
-    pub wait:  BusLine<bool>, // |
-    pub int:   BusLine<bool>, // |
-    pub nmi:   BusLine<bool>, // | inputs
-    pub reset: BusLine<bool>, // |
-    pub busrq: BusLine<bool>, // |
+    pub outs: BusLine<Outs>,
+    /// WAIT input
+    pub wait: BusLine<bool>,
+    /// INT input
+    pub int: BusLine<bool>,
+    /// NMI input
+    pub nmi: BusLine<bool>,
+    /// RESET input
+    pub reset: BusLine<bool>,
+    /// BUSRQ input
+    pub busrq: BusLine<bool>,
 }
 
 impl CpuBus {
 
-    /// Create new CPU bus instance
-    pub fn new() -> CpuBus {
-        CpuBus {
-            addr:  BusLine::new("CPU::address_lines"),
-            data:  BusLine::new("CPU::data_lines"),
-            ctrl:  BusLine::new("CPU::control_lines"),
-            outs:  BusLine::new("CPU::output_lines"),
-
-            wait:  BusLine::new("CPU::wait"),
-            int:   BusLine::new("CPU::int"),
-            nmi:   BusLine::new("CPU::nmi"),
-            reset: BusLine::new("CPU::reset"),
-            busrq: BusLine::new("CPU::busrq"),
-        }
+    /// Create new clock
+    pub fn new() -> Self {
+        Default::default()
     }
 
 }

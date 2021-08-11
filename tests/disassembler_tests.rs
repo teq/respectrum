@@ -65,7 +65,7 @@ fn disassembler_recognizes_all_z80_opcodes() {
 
                 } else {
 
-                    // It is a last byte for current opcode, disassembler should yield a line
+                    // It's the last byte for current opcode, disassembler should yield a line
                     if let Some(op) = maybe_op {
 
                         if current_addr != op.addr {

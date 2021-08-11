@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 /// Decoded CPU token
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]

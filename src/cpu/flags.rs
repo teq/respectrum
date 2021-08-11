@@ -1,4 +1,3 @@
-
 bitflags! {
     /// CPU flags
     pub struct Flags : u8 {

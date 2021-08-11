@@ -12,9 +12,9 @@ use crate::{
     misc::Word,
 };
 
-/// Z80 CPU
-pub struct Cpu<'a> {
-
+/// Register file
+#[derive(Default)]
+struct RegFile {
     af: Word,
     bc: Word,
     de: Word,
@@ -31,14 +31,19 @@ pub struct Cpu<'a> {
     iff1: bool,
     iff2: bool,
     im: u8,
+}
 
+/// Z80 CPU
+pub struct Cpu<'a> {
     bus: &'a CpuBus,
     clock: &'a Clock,
-
+    regs: RegFile,
 }
 
 #[inline]
 fn parity(value: u8) -> bool {
+    // TODO: Optimize it by using a CPU flag or
+    // http://www.graphics.stanford.edu/~seander/bithacks.html#ParityParallel
     value.count_ones() % 2 == 0
 }
 
@@ -59,7 +64,7 @@ impl<'a> Device<'a> for Cpu<'a> {
 
                     let pc = self.next_pc(1);
 
-                    // Read next byte using appropriate M-cycle
+                    // Read the next byte using appropriate M-cycle
                     let byte: u8 = match decoder.upnext() {
                         TokenType::Opcode => yield_task!(self.opcode_read(pc)),
                         TokenType::Displacement | TokenType::Data => yield_task!(self.memory_read(pc))
@@ -104,7 +109,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
-                        flags.set(Flags::P, self.iff2);
+                        flags.set(Flags::P, self.regs.iff2);
                         flags.set(Flags::Z, value == 0);
                         flags.set(Flags::S, (value as i8) < 0);
                         self.set_flags(flags);
@@ -176,7 +181,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                     // Exchange
 
                     Token::EX_DE_HL => self.swap_hlde(),
-                    Token::EX_AF => self.swap_af(),
+                    Token::EX_AF => self.swap_acc(),
                     Token::EXX => self.swap_regfile(),
                     Token::EX_AtSP_RP(rpair) => {
                         let addr = self.rp(RegPair::SP).get();
@@ -486,40 +491,48 @@ impl<'a> Device<'a> for Cpu<'a> {
 
 impl<'a> Cpu<'a> {
 
+    // Create new CPU instance
+    pub fn new(bus: &'a CpuBus, clock: &'a Clock) -> Self {
+        Self {
+            bus, clock,
+            regs: Default::default(),
+        }
+    }
+
     /// Get reference to register value
     pub fn rg(&self, reg: Reg) -> &Cell<u8> {
         match reg {
-            Reg::B   => &self.bc.bytes().hi,
-            Reg::C   => &self.bc.bytes().lo,
-            Reg::D   => &self.de.bytes().hi,
-            Reg::E   => &self.de.bytes().lo,
-            Reg::H   => &self.hl.bytes().hi,
-            Reg::L   => &self.hl.bytes().lo,
-            Reg::A   => &self.af.bytes().hi,
-            Reg::F   => &self.af.bytes().lo,
-            Reg::I   => &self.ir.bytes().hi,
-            Reg::R   => &self.ir.bytes().lo,
-            Reg::IXH => &self.ix.bytes().hi,
-            Reg::IXL => &self.ix.bytes().lo,
-            Reg::IYH => &self.iy.bytes().hi,
-            Reg::IYL => &self.iy.bytes().lo,
-            _ => panic!("Unable to get register: {:#?}", reg)
+            Reg::B   => &self.regs.bc.bytes().hi,
+            Reg::C   => &self.regs.bc.bytes().lo,
+            Reg::D   => &self.regs.de.bytes().hi,
+            Reg::E   => &self.regs.de.bytes().lo,
+            Reg::H   => &self.regs.hl.bytes().hi,
+            Reg::L   => &self.regs.hl.bytes().lo,
+            Reg::A   => &self.regs.af.bytes().hi,
+            Reg::F   => &self.regs.af.bytes().lo,
+            Reg::I   => &self.regs.ir.bytes().hi,
+            Reg::R   => &self.regs.ir.bytes().lo,
+            Reg::IXH => &self.regs.ix.bytes().hi,
+            Reg::IXL => &self.regs.ix.bytes().lo,
+            Reg::IYH => &self.regs.iy.bytes().hi,
+            Reg::IYL => &self.regs.iy.bytes().lo,
+            _ => unreachable!()
         }
     }
 
     /// Get reference to regpair value
     pub fn rp(&self, rpair: RegPair) -> &Cell<u16> {
         match rpair {
-            RegPair::BC => &self.bc.word(),
-            RegPair::DE => &self.de.word(),
-            RegPair::HL => &self.hl.word(),
-            RegPair::AF => &self.af.word(),
-            RegPair::SP => &self.sp.word(),
-            RegPair::PC => &self.pc.word(),
-            RegPair::IR => &self.ir.word(),
-            RegPair::IX => &self.ix.word(),
-            RegPair::IY => &self.iy.word(),
-            _ => panic!("Unable to get register pair: {:#?}", rpair)
+            RegPair::BC => &self.regs.bc.word(),
+            RegPair::DE => &self.regs.de.word(),
+            RegPair::HL => &self.regs.hl.word(),
+            RegPair::AF => &self.regs.af.word(),
+            RegPair::SP => &self.regs.sp.word(),
+            RegPair::PC => &self.regs.pc.word(),
+            RegPair::IR => &self.regs.ir.word(),
+            RegPair::IX => &self.regs.ix.word(),
+            RegPair::IY => &self.regs.iy.word(),
+            _ => unreachable!()
         }
     }
 
@@ -533,29 +546,29 @@ impl<'a> Cpu<'a> {
         self.rg(Reg::F).set(flags.bits())
     }
 
-    /// Swap primary and alternate AF
-    fn swap_af(&self) {
-        self.af.word().swap(&self.alt_af.word());
+    /// Swap primary and alternative accumulator (AF)
+    fn swap_acc(&self) {
+        self.regs.af.word().swap(&self.regs.alt_af.word());
     }
 
-    /// Swap primary and alternate BC,DE and HL
+    /// Swap primary and alternative BC,DE and HL
     fn swap_regfile(&self) {
-        self.bc.word().swap(&self.alt_bc.word());
-        self.de.word().swap(&self.alt_de.word());
-        self.hl.word().swap(&self.alt_hl.word());
+        self.regs.bc.word().swap(&self.regs.alt_bc.word());
+        self.regs.de.word().swap(&self.regs.alt_de.word());
+        self.regs.hl.word().swap(&self.regs.alt_hl.word());
     }
 
     /// Swap HL and DE
     fn swap_hlde(&self) {
-        self.hl.word().swap(&self.de.word());
+        self.regs.hl.word().swap(&self.regs.de.word());
     }
 
-    /// Calculate absolute address for IX+d or IY+d
+    /// Calculate absolute address for IX+d or IY+d offsets
     fn idx_addr(&self, reg: Reg, displacement: i8) -> u16 {
         let rpair = match reg {
             Reg::AtIX => RegPair::IX,
             Reg::AtIY => RegPair::IY,
-            _ => panic!("Expecting (IX+d) or (IY+d), got: {:#?}", reg)
+            _ => unreachable!()
         };
         let addr = self.rp(rpair).get() as i32 + displacement as i32;
         return addr as u16;
@@ -583,7 +596,7 @@ impl<'a> Cpu<'a> {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.rising(1); // *** T3 rising ***
-            let byte = self.bus.data.sample().expect("Expecting data on a bus");
+            let byte = self.bus.data.sample().unwrap();
             self.bus.addr.drive(self.rp(RegPair::IR).get());
             self.bus.ctrl.drive(Ctls::NONE); // clear MREQ & RD
             self.bus.outs.drive(Outs::RFSH);
@@ -612,7 +625,7 @@ impl<'a> Cpu<'a> {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
-            let byte = self.bus.data.sample().expect("Expecting data on a bus");
+            let byte = self.bus.data.sample().unwrap();
             self.bus.ctrl.drive(Ctls::NONE);
             return byte;
         }

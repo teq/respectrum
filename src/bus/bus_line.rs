@@ -1,18 +1,19 @@
 use std::cell::Cell;
 
 /// Signal bus line
-pub struct BusLine<T: Copy> {
-    /// Line name
-    name: &'static str,
+#[derive(Default)]
+pub struct BusLine<T> {
+
     /// Line state
     state: Cell<Option<T>>,
+
 }
 
-impl<T: Copy> BusLine<T> {
+impl<T: Copy + Default> BusLine<T> {
 
     /// Create new bus line
-    pub fn new(name: &'static str) -> BusLine<T> {
-        BusLine { name, state: Cell::new(None) }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     /// Sample signal line expecting it is driven by someone else
@@ -23,7 +24,7 @@ impl<T: Copy> BusLine<T> {
     /// Drive signal line expecting it is not taken (driven) by others or panic otherwise.
     pub fn drive(&self, value: T) {
         match self.state.get() {
-            Some(_) => panic!("Bus line [{}] is already taken", self.name),
+            Some(_) => panic!("Line is already taken"),
             None => self.state.set(Some(value)),
         }
     }
@@ -38,17 +39,18 @@ impl<T: Copy> BusLine<T> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn sample_returns_nothing_if_line_is_not_driven() {
-        let line: BusLine<bool> = BusLine::new("test");
+        let line = BusLine::<bool>::new();
         assert_eq!(line.sample(), None);
     }
 
     #[test]
     fn sample_returns_nothing_if_line_is_driven_and_then_released() {
-        let line: BusLine<bool> = BusLine::new("test");
+        let line = BusLine::<bool>::new();
         let release = line.drive_and_release(true);
         release();
         assert_eq!(line.sample(), None);
@@ -56,14 +58,14 @@ mod tests {
 
     #[test]
     fn sample_returns_line_state_if_line_is_driven() {
-        let line: BusLine<bool> = BusLine::new("test");
+        let line = BusLine::<bool>::new();
         line.drive(true);
         assert_eq!(line.sample(), Some(true));
     }
 
     #[test]
     fn drive_sets_a_new_line_state_if_line_already_released() {
-        let line: BusLine<bool> = BusLine::new("test");
+        let line = BusLine::<bool>::new();
         let release = line.drive_and_release(true);
         assert_eq!(line.sample(), Some(true));
         release();
@@ -72,9 +74,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Bus line [test] is already taken")]
+    #[should_panic(expected = "Line is already taken")]
     fn drive_panics_if_line_is_already_taken() {
-        let line: BusLine<bool> = BusLine::new("test");
+        let line = BusLine::<bool>::new();
         line.drive(true);
         line.drive(false);
     }

@@ -1,0 +1,11 @@
+[package]
+name = "respectrum-tools"
+version = "0.1.0"
+edition = "2018"
+
+[[bin]]
+name = "disasm"
+path = "src/disasm.rs"
+
+[dependencies]
+librespectrum = { path = "../librespectrum" }

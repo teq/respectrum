@@ -1,6 +1,6 @@
 #![feature(generators, generator_trait)]
 
-extern crate respectrum;
+extern crate librespectrum;
 
 use std::{
     fs::File,
@@ -9,7 +9,7 @@ use std::{
     ops::{Generator, GeneratorState}
 };
 
-use respectrum::tools;
+use librespectrum::tools;
 
 #[test]
 fn disassembler_recognizes_all_z80_opcodes() {

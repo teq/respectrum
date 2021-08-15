@@ -1,8 +1,8 @@
 #![feature(generators, generator_trait)]
 
-extern crate respectrum;
+extern crate librespectrum;
 
-use respectrum::tools;
+use librespectrum::tools;
 
 use std::{
     pin::Pin,

@@ -1,4 +1,7 @@
-use std::cell::Cell;
+use std::{
+    rc::Rc,
+    cell::Cell,
+};
 
 use crate::{
     mkword,
@@ -14,30 +17,30 @@ use crate::{
 
 /// Register file
 #[derive(Default)]
-struct RegFile {
-    af: Word,
-    bc: Word,
-    de: Word,
-    hl: Word,
-    alt_af: Word,
-    alt_bc: Word,
-    alt_de: Word,
-    alt_hl: Word,
-    ix: Word,
-    iy: Word,
-    sp: Word,
-    pc: Word,
-    ir: Word,
-    iff1: bool,
-    iff2: bool,
-    im: u8,
+pub struct CpuState {
+    pub af: Word,
+    pub bc: Word,
+    pub de: Word,
+    pub hl: Word,
+    pub alt_af: Word,
+    pub alt_bc: Word,
+    pub alt_de: Word,
+    pub alt_hl: Word,
+    pub ix: Word,
+    pub iy: Word,
+    pub sp: Word,
+    pub pc: Word,
+    pub ir: Word,
+    pub iff1: bool,
+    pub iff2: bool,
+    pub im: u8,
 }
 
 /// Z80 CPU
-pub struct Cpu<'a> {
-    bus: &'a CpuBus,
-    clock: &'a Clock,
-    regs: RegFile,
+pub struct Cpu {
+    bus: Rc<CpuBus>,
+    clock: Rc<Clock>,
+    state: Rc<CpuState>,
 }
 
 #[inline]
@@ -47,10 +50,10 @@ fn parity(value: u8) -> bool {
     value.count_ones() % 2 == 0
 }
 
-impl<'a> Device<'a> for Cpu<'a> {
+impl Device for Cpu {
 
     /// Run CPU device task
-    fn run(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 
@@ -109,7 +112,7 @@ impl<'a> Device<'a> for Cpu<'a> {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
-                        flags.set(Flags::P, self.regs.iff2);
+                        flags.set(Flags::P, self.state.iff2);
                         flags.set(Flags::Z, value == 0);
                         flags.set(Flags::S, (value as i8) < 0);
                         self.set_flags(flags);
@@ -489,33 +492,30 @@ impl<'a> Device<'a> for Cpu<'a> {
 
 }
 
-impl<'a> Cpu<'a> {
+impl Cpu {
 
     // Create new CPU instance
-    pub fn new(bus: &'a CpuBus, clock: &'a Clock) -> Self {
-        Self {
-            bus, clock,
-            regs: Default::default(),
-        }
+    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>, state: Rc<CpuState>) -> Self {
+        Self { bus, clock, state }
     }
 
     /// Get reference to register value
     pub fn rg(&self, reg: Reg) -> &Cell<u8> {
         match reg {
-            Reg::B   => &self.regs.bc.bytes().hi,
-            Reg::C   => &self.regs.bc.bytes().lo,
-            Reg::D   => &self.regs.de.bytes().hi,
-            Reg::E   => &self.regs.de.bytes().lo,
-            Reg::H   => &self.regs.hl.bytes().hi,
-            Reg::L   => &self.regs.hl.bytes().lo,
-            Reg::A   => &self.regs.af.bytes().hi,
-            Reg::F   => &self.regs.af.bytes().lo,
-            Reg::I   => &self.regs.ir.bytes().hi,
-            Reg::R   => &self.regs.ir.bytes().lo,
-            Reg::IXH => &self.regs.ix.bytes().hi,
-            Reg::IXL => &self.regs.ix.bytes().lo,
-            Reg::IYH => &self.regs.iy.bytes().hi,
-            Reg::IYL => &self.regs.iy.bytes().lo,
+            Reg::B   => &self.state.bc.bytes().hi,
+            Reg::C   => &self.state.bc.bytes().lo,
+            Reg::D   => &self.state.de.bytes().hi,
+            Reg::E   => &self.state.de.bytes().lo,
+            Reg::H   => &self.state.hl.bytes().hi,
+            Reg::L   => &self.state.hl.bytes().lo,
+            Reg::A   => &self.state.af.bytes().hi,
+            Reg::F   => &self.state.af.bytes().lo,
+            Reg::I   => &self.state.ir.bytes().hi,
+            Reg::R   => &self.state.ir.bytes().lo,
+            Reg::IXH => &self.state.ix.bytes().hi,
+            Reg::IXL => &self.state.ix.bytes().lo,
+            Reg::IYH => &self.state.iy.bytes().hi,
+            Reg::IYL => &self.state.iy.bytes().lo,
             _ => unreachable!()
         }
     }
@@ -523,15 +523,15 @@ impl<'a> Cpu<'a> {
     /// Get reference to regpair value
     pub fn rp(&self, rpair: RegPair) -> &Cell<u16> {
         match rpair {
-            RegPair::BC => &self.regs.bc.word(),
-            RegPair::DE => &self.regs.de.word(),
-            RegPair::HL => &self.regs.hl.word(),
-            RegPair::AF => &self.regs.af.word(),
-            RegPair::SP => &self.regs.sp.word(),
-            RegPair::PC => &self.regs.pc.word(),
-            RegPair::IR => &self.regs.ir.word(),
-            RegPair::IX => &self.regs.ix.word(),
-            RegPair::IY => &self.regs.iy.word(),
+            RegPair::BC => &self.state.bc.word(),
+            RegPair::DE => &self.state.de.word(),
+            RegPair::HL => &self.state.hl.word(),
+            RegPair::AF => &self.state.af.word(),
+            RegPair::SP => &self.state.sp.word(),
+            RegPair::PC => &self.state.pc.word(),
+            RegPair::IR => &self.state.ir.word(),
+            RegPair::IX => &self.state.ix.word(),
+            RegPair::IY => &self.state.iy.word(),
             _ => unreachable!()
         }
     }
@@ -548,19 +548,19 @@ impl<'a> Cpu<'a> {
 
     /// Swap primary and alternative accumulator (AF)
     fn swap_acc(&self) {
-        self.regs.af.word().swap(&self.regs.alt_af.word());
+        self.state.af.word().swap(&self.state.alt_af.word());
     }
 
     /// Swap primary and alternative BC,DE and HL
     fn swap_regfile(&self) {
-        self.regs.bc.word().swap(&self.regs.alt_bc.word());
-        self.regs.de.word().swap(&self.regs.alt_de.word());
-        self.regs.hl.word().swap(&self.regs.alt_hl.word());
+        self.state.bc.word().swap(&self.state.alt_bc.word());
+        self.state.de.word().swap(&self.state.alt_de.word());
+        self.state.hl.word().swap(&self.state.alt_hl.word());
     }
 
     /// Swap HL and DE
     fn swap_hlde(&self) {
-        self.regs.hl.word().swap(&self.regs.de.word());
+        self.state.hl.word().swap(&self.state.de.word());
     }
 
     /// Calculate absolute address for IX+d or IY+d offsets
@@ -583,7 +583,7 @@ impl<'a> Cpu<'a> {
 
     /// Instruction opcode fetch m-cycle
     /// (usually referred to as M1). Takes 4 t-cycles.
-    fn opcode_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
+    fn opcode_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // *** T1 rising ***
             self.bus.addr.drive(addr);
@@ -612,7 +612,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Memory read m-cycle. Takes 3 t-cycles.
-    fn memory_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
+    fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -632,7 +632,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Memory write m-cycle. Takes 3 t-cycles
-    fn memory_write(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
+    fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -653,7 +653,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// Copy memory byte (DE)<-(HL), inc or dec HL&DE, dec BC
-    fn memory_copy(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
+    fn memory_copy<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
         move || {
             let src = self.rp(RegPair::HL).get();
             let dst = self.rp(RegPair::DE).get();
@@ -678,7 +678,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// IO read m-cycle
-    fn io_read(&'a self, addr: u16) -> impl Task<u8> + 'a {
+    fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);
@@ -698,7 +698,7 @@ impl<'a> Cpu<'a> {
     }
 
     /// IO write m-cycle
-    fn io_write(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
+    fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(addr);

@@ -1,4 +1,5 @@
 use std::{
+    rc::Rc,
     pin::Pin,
     ops::{Generator, GeneratorState},
 };
@@ -14,10 +15,10 @@ pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;
 pub trait NoReturnTask = Task<!>;
 
 /// Generic bus device
-pub trait Device<'a> {
+pub trait Device {
 
     /// Create task to run with the scheduler
-    fn run(&'a self) -> Box<dyn NoReturnTask + 'a>;
+    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a>;
 
 }
 
@@ -25,7 +26,7 @@ pub trait Device<'a> {
 pub struct Scheduler<'a> {
 
     /// System clock
-    clock: &'a Clock,
+    clock: Rc<Clock>,
 
     /// Managed tasks stored as tuples: (htcycles, task)
     tasks: Vec<(u64, Box<dyn NoReturnTask + 'a>)>,
@@ -35,12 +36,12 @@ pub struct Scheduler<'a> {
 impl<'a> Scheduler<'a> {
 
     /// Create new scheduler instance
-    pub fn new(clock: &'a Clock) -> Self {
+    pub fn new(clock: Rc<Clock>) -> Self {
         Self { clock, tasks: Default::default() }
     }
 
     /// Add new device
-    pub fn add(&mut self, device: &'a dyn Device<'a>) {
+    pub fn add(&mut self, device: &'a dyn Device) {
         let task = device.run();
         self.tasks.push((self.clock.get(), task));
     }
@@ -85,18 +86,18 @@ impl<'a> Scheduler<'a> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use std::cell::RefCell;
 
     struct SharedState {
-        clock: Clock,
+        clock: Rc<Clock>,
         seq: RefCell<Vec<(u64, bool)>>
     }
 
-    struct Foo<'a> { state: &'a SharedState }
-    impl<'a> Device<'a> for Foo<'a> {
-        fn run(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    struct Foo { state: Rc<SharedState> }
+    impl Device for Foo {
+        fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(move || {
                 loop {
                     yield self.state.clock.rising(3); // skip to 3rd raising edge
@@ -106,9 +107,9 @@ mod tests {
         }
     }
 
-    struct Bar<'a> { state: &'a SharedState }
-    impl<'a> Device<'a> for Bar<'a> {
-        fn run(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    struct Bar { state: Rc<SharedState> }
+    impl Device for Bar {
+        fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(move || {
                 loop {
                     yield self.state.clock.falling(1); // skip to 1st falling edge
@@ -121,15 +122,17 @@ mod tests {
     #[test]
     fn scheduler_executes_tasks() {
 
-        let state = SharedState {
-            clock: Clock::new(),
+        let clock = Rc::new(Clock::new());
+
+        let state = Rc::new(SharedState {
+            clock: Rc::clone(&clock),
             seq: RefCell::new(vec!())
-        };
+        });
 
-        let foo = Foo { state: &state };
-        let bar = Bar { state: &state };
+        let foo = Foo { state: Rc::clone(&state) };
+        let bar = Bar { state: Rc::clone(&state) };
 
-        let mut scheduler = Scheduler::new(&state.clock);
+        let mut scheduler = Scheduler::new(clock);
         scheduler.add(&foo);
         scheduler.add(&bar);
 

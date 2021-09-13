@@ -1,4 +1,5 @@
 mod cpu;
+pub use cpu::CpuState;
 pub use cpu::Cpu;
 
 mod decoder;

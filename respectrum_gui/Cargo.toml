@@ -1,11 +1,13 @@
 [package]
-name = "respectrum-tools"
+name = "respectrum_gui"
 version = "0.1.0"
 edition = "2018"
+default-run = "emul"
 
 [[bin]]
-name = "disasm"
-path = "src/disasm.rs"
+name = "emul"
+path = "src/emul.rs"
 
 [dependencies]
 librespectrum = { path = "../librespectrum" }
+eframe = "^0.14.0"

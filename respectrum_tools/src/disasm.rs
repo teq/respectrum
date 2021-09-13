@@ -13,11 +13,11 @@ use std::{
 
 fn main() {
 
-    let address: u16 = 0x8000;
+    let address: u16 = 0x0000;
     let offset: u16 = 0x0;
     let mut limit = 100;
 
-    let mut file = File::open("tests/exerciser/zexall.bin").unwrap();
+    let mut file = File::open("roms/48.rom").unwrap();
     let mut buffer: Vec<u8> = Vec::new();
     file.seek(SeekFrom::Start(offset as u64)).unwrap();
     file.read_to_end(&mut buffer).unwrap();

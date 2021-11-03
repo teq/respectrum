@@ -16,56 +16,64 @@ impl Window for CpuWindow {
 
     fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
 
+        let reg_label = |ui: &mut egui::Ui, label: &str, value: u16| {
+            ui.label(label);
+            ui.colored_label(egui::Color32::WHITE, format!("{:04X}", value));
+        };
+
+        let flag_label = |ui: &mut egui::Ui, label: &str, is_set: bool| {
+            let color = if is_set { egui::Color32::GREEN } else { egui::Color32::GRAY };
+            ui.colored_label(color, label);
+        };
+
         egui::Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
 
             egui::Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 
-                let reg = |ui: &mut egui::Ui, label: &str, value: u16| {
-                    ui.label(label);
-                    ui.colored_label(egui::Color32::WHITE, format!("{:04X}h", value));
-                };
-
-                reg(ui, "AF:", self.cpu_state.af.word().get());
-                reg(ui, "AF':", self.cpu_state.alt_af.word().get());
+                reg_label(ui, "AF:", self.cpu_state.af.word().get());
+                reg_label(ui, "AF':", self.cpu_state.alt_af.word().get());
                 ui.end_row();
 
-                reg(ui, "BC:", self.cpu_state.bc.word().get());
-                reg(ui, "BC':", self.cpu_state.alt_bc.word().get());
+                reg_label(ui, "BC:", self.cpu_state.bc.word().get());
+                reg_label(ui, "BC':", self.cpu_state.alt_bc.word().get());
                 ui.end_row();
 
-                reg(ui, "DE:", self.cpu_state.de.word().get());
-                reg(ui, "DE':", self.cpu_state.alt_de.word().get());
+                reg_label(ui, "DE:", self.cpu_state.de.word().get());
+                reg_label(ui, "DE':", self.cpu_state.alt_de.word().get());
                 ui.end_row();
 
-                reg(ui, "HL:", self.cpu_state.hl.word().get());
-                reg(ui, "HL':", self.cpu_state.alt_hl.word().get());
+                reg_label(ui, "HL:", self.cpu_state.hl.word().get());
+                reg_label(ui, "HL':", self.cpu_state.alt_hl.word().get());
                 ui.end_row();
 
-                reg(ui, "IX:", self.cpu_state.ix.word().get());
-                reg(ui, "IY:", self.cpu_state.iy.word().get());
+                reg_label(ui, "IX:", self.cpu_state.ix.word().get());
+                reg_label(ui, "IY:", self.cpu_state.iy.word().get());
                 ui.end_row();
 
-                reg(ui, "PC:", self.cpu_state.pc.word().get());
-                reg(ui, "SP:", self.cpu_state.sp.word().get());
+                reg_label(ui, "PC:", self.cpu_state.pc.word().get());
+                reg_label(ui, "SP:", self.cpu_state.sp.word().get());
                 ui.end_row();
 
             });
 
             ui.horizontal(|ui| {
-                ui.colored_label(egui::Color32::GREEN, "C");
-                ui.colored_label(egui::Color32::GRAY, "N");
-                ui.colored_label(egui::Color32::GRAY, "P");
-                ui.colored_label(egui::Color32::GRAY, "X");
-                ui.colored_label(egui::Color32::GRAY, "H");
-                ui.colored_label(egui::Color32::GRAY, "Y");
-                ui.colored_label(egui::Color32::GRAY, "Z");
-                ui.colored_label(egui::Color32::GRAY, "S");
+
+                let flags = cpu::Flags::from(self.cpu_state.af.bytes().lo.get());
+                flag_label(ui, "C", flags.contains(cpu::Flags::C));
+                flag_label(ui, "N", flags.contains(cpu::Flags::N));
+                flag_label(ui, "P", flags.contains(cpu::Flags::P));
+                flag_label(ui, "X", flags.contains(cpu::Flags::X));
+                flag_label(ui, "H", flags.contains(cpu::Flags::H));
+                flag_label(ui, "Y", flags.contains(cpu::Flags::Y));
+                flag_label(ui, "Z", flags.contains(cpu::Flags::Z));
+                flag_label(ui, "S", flags.contains(cpu::Flags::S));
+
             });
 
             ui.horizontal(|ui| {
-                ui.colored_label(egui::Color32::WHITE, "IM1");
-                ui.colored_label(egui::Color32::GREEN, "IFF1");
-                ui.colored_label(egui::Color32::GRAY, "IFF2");
+                ui.colored_label(egui::Color32::WHITE, format!("IM{}", self.cpu_state.im));
+                flag_label(ui, "IFF1", self.cpu_state.iff1);
+                flag_label(ui, "IFF2", self.cpu_state.iff2);
             });
 
         });

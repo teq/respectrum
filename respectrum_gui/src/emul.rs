@@ -2,18 +2,16 @@ extern crate librespectrum;
 
 use librespectrum::{bus, cpu, devs};
 use eframe::{egui, epi};
-use std::rc::Rc;
+use std::{rc::Rc, vec::Vec};
 
 mod windows;
 use windows::{Window, CpuWindow, DisassmWindow, MemoryWindow};
 
-struct EmulWindow {
-    cpu_window: CpuWindow,
-    disassm_window: DisassmWindow,
-    mem_window: MemoryWindow,
+struct EmulApp {
+    windows: Vec<(bool, Box<dyn Window>)>
 }
 
-impl epi::App for EmulWindow {
+impl epi::App for EmulApp {
 
     fn name(&self) -> &str {
         "reSpectrum - ZX Spectrum emulator"
@@ -33,13 +31,9 @@ impl epi::App for EmulWindow {
                     }
                 });
                 egui::menu::menu(ui, "Window", |ui| {
-                    ui.checkbox(&mut self.cpu_window.open, "CPU");
-                    ui.checkbox(&mut self.mem_window.open, "Memory");
-                    ui.separator();
-                    ui.label("Set layout:");
-                    ui.separator();
-                    ui.button("Normal");
-                    ui.button("Developer");
+                    for (open, window) in &mut self.windows {
+                        ui.checkbox(open, window.name());
+                    }
                 });
                 ui.with_layout(egui::Layout::right_to_left(), |ui| {
                     egui::warn_if_debug_build(ui);
@@ -47,9 +41,9 @@ impl epi::App for EmulWindow {
             });
         });
 
-        self.cpu_window.update(ctx);
-        self.disassm_window.update(ctx);
-        self.mem_window.update(ctx);
+        for (open, window) in &mut self.windows {
+            window.show(ctx, open);
+        }
 
     }
 
@@ -63,14 +57,14 @@ fn main() {
     let cpu = cpu::Cpu::new(Rc::clone(&bus), Rc::clone(&clock), Rc::clone(&cpu_state));
     let mem = devs::mem::FlatRam::new(Rc::clone(&bus), Rc::clone(&clock));
 
-    let app = EmulWindow {
-        cpu_window: CpuWindow {
-            open: true,
-            cpu_state: Rc::clone(&cpu_state),
-        },
-        disassm_window: Default::default(),
-        mem_window: Default::default(),
+    let app = EmulApp {
+        windows: vec![
+            (true, Box::new(CpuWindow { cpu_state: Rc::clone(&cpu_state) })),
+            (false, Box::new(DisassmWindow {})),
+            (true, Box::new(MemoryWindow {})),
+        ]
     };
+
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(Box::new(app), native_options);
 

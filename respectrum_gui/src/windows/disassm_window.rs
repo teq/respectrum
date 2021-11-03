@@ -2,21 +2,15 @@ use eframe::egui;
 
 use super::Window;
 
-pub struct DisassmWindow {
-    pub open: bool,
-}
-
-impl Default for DisassmWindow {
-    fn default() -> Self {
-        Self {
-            open: true
-        }
-    }
-}
+pub struct DisassmWindow {}
 
 impl Window for DisassmWindow {
 
-    fn update(&mut self, ctx: &egui::CtxRef) {
+    fn name(&self) -> &str {
+        "Disassm"
+    }
+
+    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
     }
 
 }

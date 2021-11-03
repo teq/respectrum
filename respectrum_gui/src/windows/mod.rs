@@ -8,5 +8,11 @@ mod memory_window;
 pub use memory_window::MemoryWindow;
 
 pub trait Window {
-    fn update(&mut self, ctx: &egui::CtxRef);
+
+    /// Window name
+    fn name(&self) -> &str;
+
+    /// Window draw function
+    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool);
+
 }

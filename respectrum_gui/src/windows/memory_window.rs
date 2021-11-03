@@ -2,23 +2,17 @@ use eframe::egui;
 
 use super::Window;
 
-pub struct MemoryWindow {
-    pub open: bool,
-}
-
-impl Default for MemoryWindow {
-    fn default() -> Self {
-        Self {
-            open: true
-        }
-    }
-}
+pub struct MemoryWindow {}
 
 impl Window for MemoryWindow {
 
-    fn update(&mut self, ctx: &egui::CtxRef) {
+    fn name(&self) -> &str {
+        "Memory"
+    }
 
-        egui::Window::new("Memory").resizable(false).open(&mut self.open).show(ctx, |ui| {
+    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
+
+        egui::Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
             egui::Grid::new("hexdump").min_col_width(0.0).show(ui, |ui| {
                 ui.label("12"); ui.label("56"); ui.label("90"); ui.label("CD"); ui.end_row();
                 ui.label("23"); ui.label("67"); ui.label("0A"); ui.label("DE"); ui.end_row();

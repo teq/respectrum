@@ -5,26 +5,50 @@ use std::rc::Rc;
 use super::Window;
 
 pub struct CpuWindow {
-    pub open: bool,
     pub cpu_state: Rc<cpu::CpuState>,
 }
 
 impl Window for CpuWindow {
 
-    fn update(&mut self, ctx: &egui::CtxRef) {
+    fn name(&self) -> &str {
+        "CPU"
+    }
 
-        egui::Window::new("CPU").resizable(false).open(&mut self.open).show(ctx, |ui| {
+    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
 
-            egui::Grid::new("cpu_regs").min_col_width(20.0) .show(ui, |ui| {
-                let reg = |ui: &mut egui::Ui, label: &str, value: &str| {
-                    ui.label(label);  ui.colored_label(egui::Color32::WHITE, value);
+        egui::Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
+
+            egui::Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
+
+                let reg = |ui: &mut egui::Ui, label: &str, value: u16| {
+                    ui.label(label);
+                    ui.colored_label(egui::Color32::WHITE, format!("{:04X}h", value));
                 };
-                reg(ui, "AF:", "0FA0"); reg(ui, "AF':", "0FE3"); ui.end_row();
-                reg(ui, "BC:", "0FA0"); reg(ui, "BC':", "0FE3"); ui.end_row();
-                reg(ui, "DE:", "0FA0"); reg(ui, "DE':", "0FE3"); ui.end_row();
-                reg(ui, "HL:", "0FA0"); reg(ui, "HL':", "0FE3"); ui.end_row();
-                reg(ui, "IX:", "0FA0"); reg(ui, "IY:",  "0FE3"); ui.end_row();
-                reg(ui, "PC:", "0FA0"); reg(ui, "SP:",  "0FE3"); ui.end_row();
+
+                reg(ui, "AF:", self.cpu_state.af.word().get());
+                reg(ui, "AF':", self.cpu_state.alt_af.word().get());
+                ui.end_row();
+
+                reg(ui, "BC:", self.cpu_state.bc.word().get());
+                reg(ui, "BC':", self.cpu_state.alt_bc.word().get());
+                ui.end_row();
+
+                reg(ui, "DE:", self.cpu_state.de.word().get());
+                reg(ui, "DE':", self.cpu_state.alt_de.word().get());
+                ui.end_row();
+
+                reg(ui, "HL:", self.cpu_state.hl.word().get());
+                reg(ui, "HL':", self.cpu_state.alt_hl.word().get());
+                ui.end_row();
+
+                reg(ui, "IX:", self.cpu_state.ix.word().get());
+                reg(ui, "IY:", self.cpu_state.iy.word().get());
+                ui.end_row();
+
+                reg(ui, "PC:", self.cpu_state.pc.word().get());
+                reg(ui, "SP:", self.cpu_state.sp.word().get());
+                ui.end_row();
+
             });
 
             ui.horizontal(|ui| {

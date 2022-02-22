@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn scheduler_executes_tasks() {
 
-        let clock = Rc::new(Clock::new());
+        let clock: Rc<Clock> = Default::default();
 
         let state = Rc::new(SharedState {
             clock: Rc::clone(&clock),

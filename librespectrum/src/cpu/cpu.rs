@@ -6,7 +6,7 @@ use std::{
 use crate::{
     mkword,
     spword,
-    yield_task,
+    yield_from,
     bus::{Device, NoReturnTask, Clock, CpuBus, Task, Ctls, Outs},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp},
@@ -69,8 +69,8 @@ impl Device for Cpu {
 
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match decoder.upnext() {
-                        TokenType::Opcode => yield_task!(self.opcode_read(pc)),
-                        TokenType::Displacement | TokenType::Data => yield_task!(self.memory_read(pc))
+                        TokenType::Opcode => yield_from!(self.opcode_read(pc)),
+                        TokenType::Displacement | TokenType::Data => yield_from!(self.memory_read(pc))
                     };
 
                     // Decode byte
@@ -88,20 +88,20 @@ impl Device for Cpu {
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.idx_addr(dst, decoder.expect_displacement());
-                        yield_task!(self.memory_write(addr, self.rg(src).get()));
+                        yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
                         let addr = self.idx_addr(src, decoder.expect_displacement());
-                        self.rg(dst).set(yield_task!(self.memory_read(addr)));
+                        self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
                         let addr = self.rp(RegPair::HL).get();
-                        yield_task!(self.memory_write(addr, self.rg(src).get()));
+                        yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, Reg::AtHL) => {
                         let addr = self.rp(RegPair::HL).get();
-                        self.rg(dst).set(yield_task!(self.memory_read(addr)))
+                        self.rg(dst).set(yield_from!(self.memory_read(addr)))
                     },
                     Token::LD_RG_RG(dst @ (Reg::I | Reg::R), Reg::A) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
@@ -122,26 +122,26 @@ impl Device for Cpu {
                     },
                     Token::LD_RG_N(Reg::AtHL) => {
                         let addr = self.rp(RegPair::HL).get();
-                        yield_task!(self.memory_write(addr, decoder.expect_byte_data()));
+                        yield_from!(self.memory_write(addr, decoder.expect_byte_data()));
                     },
                     Token::LD_RG_N(reg) => {
                         self.rg(reg).set(decoder.expect_byte_data());
                     },
                     Token::LD_A_AtRP(rpair) => {
                         let addr = self.rp(rpair).get();
-                        self.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
+                        self.rg(Reg::A).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_AtRP_A(rpair) => {
                         let addr = self.rp(rpair).get();
-                        yield_task!(self.memory_write(addr, self.rg(Reg::A).get()));
+                        yield_from!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::LD_A_MM => {
                         let addr = decoder.expect_word_data();
-                        self.rg(Reg::A).set(yield_task!(self.memory_read(addr)));
+                        self.rg(Reg::A).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_MM_A => {
                         let addr = decoder.expect_word_data();
-                        yield_task!(self.memory_write(addr, self.rg(Reg::A).get()));
+                        yield_from!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
 
                     // 16-bit Load
@@ -151,15 +151,15 @@ impl Device for Cpu {
                     },
                     Token::LD_RP_MM(rpair) => {
                         let addr = decoder.expect_word_data();
-                        let lo = yield_task!(self.memory_read(addr));
-                        let hi = yield_task!(self.memory_read(addr + 1));
+                        let lo = yield_from!(self.memory_read(addr));
+                        let hi = yield_from!(self.memory_read(addr + 1));
                         self.rp(rpair).set(mkword!(hi, lo));
                     },
                     Token::LD_MM_RP(rpair) => {
                         let addr = decoder.expect_word_data();
                         let (hi, lo) = spword!(self.rp(rpair).get());
-                        yield_task!(self.memory_write(addr, lo));
-                        yield_task!(self.memory_write(addr + 1, hi));
+                        yield_from!(self.memory_write(addr, lo));
+                        yield_from!(self.memory_write(addr + 1, hi));
                     },
                     Token::LD_SP_RP(rpair) => {
                         yield self.clock.rising(2); // complement M1 to 6 t-cycles
@@ -167,8 +167,8 @@ impl Device for Cpu {
                     },
                     Token::POP(rpair) => {
                         let addr = self.rp(RegPair::SP).get();
-                        let lo = yield_task!(self.memory_read(addr));
-                        let hi = yield_task!(self.memory_read(addr + 1));
+                        let lo = yield_from!(self.memory_read(addr));
+                        let hi = yield_from!(self.memory_read(addr + 1));
                         self.rp(rpair).set(mkword!(hi, lo));
                         self.rp(RegPair::SP).set(addr + 2);
                     },
@@ -176,8 +176,8 @@ impl Device for Cpu {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
                         let addr = self.rp(RegPair::SP).get();
                         let (hi, lo) = spword!(self.rp(rpair).get());
-                        yield_task!(self.memory_write(addr - 1, hi));
-                        yield_task!(self.memory_write(addr - 2, lo));
+                        yield_from!(self.memory_write(addr - 1, hi));
+                        yield_from!(self.memory_write(addr - 2, lo));
                         self.rp(RegPair::SP).set(addr - 2);
                     },
 
@@ -188,22 +188,22 @@ impl Device for Cpu {
                     Token::EXX => self.swap_regfile(),
                     Token::EX_AtSP_RP(rpair) => {
                         let addr = self.rp(RegPair::SP).get();
-                        let rd_lo = yield_task!(self.memory_read(addr));
-                        let rd_hi = yield_task!(self.memory_read(addr + 1));
+                        let rd_lo = yield_from!(self.memory_read(addr));
+                        let rd_hi = yield_from!(self.memory_read(addr + 1));
                         yield self.clock.rising(1);
                         let (wr_hi, wr_lo) = spword!(self.rp(rpair).get());
                         self.rp(rpair).set(mkword!(rd_hi, rd_lo));
-                        yield_task!(self.memory_write(addr + 1, wr_hi));
-                        yield_task!(self.memory_write(addr, wr_lo));
+                        yield_from!(self.memory_write(addr + 1, wr_hi));
+                        yield_from!(self.memory_write(addr, wr_lo));
                         yield self.clock.rising(2);
                     },
 
                     // Block transfer, search group
 
-                    Token::BLOP(BlockOp::LDI) => yield_task!(self.memory_copy(1, false)),
-                    Token::BLOP(BlockOp::LDD) => yield_task!(self.memory_copy(-1, false)),
-                    Token::BLOP(BlockOp::LDIR) => yield_task!(self.memory_copy(1, true)),
-                    Token::BLOP(BlockOp::LDDR) => yield_task!(self.memory_copy(-1, true)),
+                    Token::BLOP(BlockOp::LDI) => yield_from!(self.memory_copy(1, false)),
+                    Token::BLOP(BlockOp::LDD) => yield_from!(self.memory_copy(-1, false)),
+                    Token::BLOP(BlockOp::LDIR) => yield_from!(self.memory_copy(1, true)),
+                    Token::BLOP(BlockOp::LDDR) => yield_from!(self.memory_copy(-1, true)),
                     Token::BLOP(BlockOp::CPI) => unimplemented!(),
                     Token::BLOP(BlockOp::CPD) => unimplemented!(),
                     Token::BLOP(BlockOp::CPIR) => unimplemented!(),
@@ -447,27 +447,27 @@ impl Device for Cpu {
 
                     Token::IN_A_N => {
                         let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
-                        self.rg(Reg::A).set(yield_task!(self.io_read(addr)));
+                        self.rg(Reg::A).set(yield_from!(self.io_read(addr)));
                     },
                     Token::OUT_N_A => {
                         let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
-                        yield_task!(self.io_write(addr, self.rg(Reg::A).get()));
+                        yield_from!(self.io_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::IN_RG_AtBC(reg) => {
                         let addr = self.rp(RegPair::BC).get();
-                        self.rg(reg).set(yield_task!(self.io_read(addr)));
+                        self.rg(reg).set(yield_from!(self.io_read(addr)));
                     },
                     Token::OUT_AtBC_RG(reg) => {
                         let addr = self.rp(RegPair::BC).get();
-                        yield_task!(self.io_write(addr, self.rg(reg).get()));
+                        yield_from!(self.io_write(addr, self.rg(reg).get()));
                     },
                     Token::IN_AtBC => {
                         let addr = self.rp(RegPair::BC).get();
-                        yield_task!(self.io_read(addr));
+                        yield_from!(self.io_read(addr));
                     },
                     Token::OUT_AtBC_0 => {
                         let addr = self.rp(RegPair::BC).get();
-                        yield_task!(self.io_write(addr, 0));
+                        yield_from!(self.io_write(addr, 0));
                     },
                     Token::BLOP(BlockOp::INI) => unimplemented!(),
                     Token::BLOP(BlockOp::OUTI) => unimplemented!(),
@@ -495,8 +495,12 @@ impl Device for Cpu {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>, state: Rc<CpuState>) -> Self {
-        Self { bus, clock, state }
+    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>, state: &Rc<CpuState>) -> Self {
+        Self {
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
+            state: Rc::clone(state)
+        }
     }
 
     /// Get reference to register value
@@ -658,8 +662,8 @@ impl Cpu {
             let src = self.rp(RegPair::HL).get();
             let dst = self.rp(RegPair::DE).get();
             let counter = self.rp(RegPair::BC).get().wrapping_sub(1);
-            let value = yield_task!(self.memory_read(src));
-            yield_task!(self.memory_write(dst, value));
+            let value = yield_from!(self.memory_read(src));
+            yield_from!(self.memory_write(dst, value));
             yield self.clock.rising(2); // complement MW to 5 t-cycles
             self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
             self.rp(RegPair::DE).set(dst.wrapping_add(increment as u16));

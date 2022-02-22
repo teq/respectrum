@@ -11,11 +11,6 @@ pub struct Clock {
 
 impl Clock {
 
-    /// Create new clock
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     /// Set clock in half t-cycles
     pub fn set(&self, val: u64) {
         self.htcycles.set(val);

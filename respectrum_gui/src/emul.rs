@@ -20,7 +20,7 @@ impl epi::App for EmulApp {
     fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
 
         // let mut style: egui::Style = Default::default();
-        // style.visuals .override_text_color = Some(egui::Color32::RED);
+        // style.visuals.override_text_color = Some(egui::Color32::RED);
         // ctx.set_style(style);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -51,15 +51,16 @@ impl epi::App for EmulApp {
 
 fn main() {
 
-    let bus = Rc::new(bus::CpuBus::new());
-    let clock = Rc::new(bus::Clock::new());
+    let bus: Rc<bus::CpuBus> = Default::default();
+    let clock: Rc<bus::Clock> = Default::default();
     let cpu_state: Rc<cpu::CpuState> = Default::default();
-    let cpu = cpu::Cpu::new(Rc::clone(&bus), Rc::clone(&clock), Rc::clone(&cpu_state));
-    let mem = devs::mem::FlatRam::new(Rc::clone(&bus), Rc::clone(&clock));
+
+    let cpu = cpu::Cpu::new(&bus, &clock, &cpu_state);
+    let mem = devs::mem::Dynamic48k::new(&bus, &clock);
 
     let app = EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow { cpu_state: Rc::clone(&cpu_state) })),
+            (true, Box::new(CpuWindow { cpu_state })),
             (false, Box::new(DisassmWindow {})),
             (true, Box::new(MemoryWindow {})),
         ]

@@ -16,9 +16,10 @@ macro_rules! spword {
     }
 }
 
-/// Nest task into another
+/// Yield results from generator from within another generator.
+/// Analogous to python's `yield from` syntax
 #[macro_export]
-macro_rules! yield_task {
+macro_rules! yield_from {
     ($input: expr) => {
         {
             let mut task = $input;

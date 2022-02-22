@@ -1,11 +1,10 @@
 mod cpu;
-pub use cpu::CpuState;
-pub use cpu::Cpu;
+pub use cpu::*;
 
 mod decoder;
-pub use decoder::InstructionDecoder;
+pub use decoder::*;
 
 mod flags;
-pub use flags::Flags;
+pub use flags::*;
 
 pub mod tokens;

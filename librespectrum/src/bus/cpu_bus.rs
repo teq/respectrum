@@ -29,9 +29,9 @@ pub struct CpuBus {
     pub addr: BusLine<u16>,
     /// Data bus (tri-state in/outputs)
     pub data: BusLine<u8>,
-    /// Tri-state control outputs: MREQ, IORQ, RD, WR
+    /// Tri-state control outputs
     pub ctrl: BusLine<Ctls>,
-    /// Control outputs: M1, RFSH, HALT, BUSAK
+    /// Control outputs
     pub outs: BusLine<Outs>,
     /// WAIT input
     pub wait: BusLine<bool>,
@@ -43,13 +43,4 @@ pub struct CpuBus {
     pub reset: BusLine<bool>,
     /// BUSRQ input
     pub busrq: BusLine<bool>,
-}
-
-impl CpuBus {
-
-    /// Create new clock
-    pub fn new() -> Self {
-        Default::default()
-    }
-
 }

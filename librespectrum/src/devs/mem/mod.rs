@@ -1,2 +1,5 @@
-mod flat_ram;
-pub use flat_ram::FlatRam;
+mod dynamic_48k;
+pub use dynamic_48k::Dynamic48k;
+
+mod memory;
+pub use memory::Memory;

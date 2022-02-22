@@ -10,7 +10,7 @@ impl Window for MemoryWindow {
         "Memory"
     }
 
-    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
 
         egui::Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
             egui::Grid::new("hexdump").min_col_width(0.0).show(ui, |ui| {

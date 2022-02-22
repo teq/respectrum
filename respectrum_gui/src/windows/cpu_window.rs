@@ -14,11 +14,11 @@ impl Window for CpuWindow {
         "CPU"
     }
 
-    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
 
         let reg_label = |ui: &mut egui::Ui, label: &str, value: u16| {
             ui.label(label);
-            ui.colored_label(egui::Color32::WHITE, format!("{:04X}", value));
+            ui.label(format!("{:04X}", value));
         };
 
         let flag_label = |ui: &mut egui::Ui, label: &str, is_set: bool| {

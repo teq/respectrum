@@ -17,7 +17,7 @@ impl epi::App for EmulApp {
         "reSpectrum - ZX Spectrum emulator"
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
+    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
 
         // let mut style: egui::Style = Default::default();
         // style.visuals.override_text_color = Some(egui::Color32::RED);
@@ -25,12 +25,12 @@ impl epi::App for EmulApp {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                egui::menu::menu(ui, "File", |ui| {
+                ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
                         frame.quit();
                     }
                 });
-                egui::menu::menu(ui, "Window", |ui| {
+                ui.menu_button("Window", |ui| {
                     for (open, window) in &mut self.windows {
                         ui.checkbox(open, window.name());
                     }

@@ -10,7 +10,7 @@ impl Window for DisassmWindow {
         "Disassm"
     }
 
-    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
     }
 
 }

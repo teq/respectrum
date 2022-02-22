@@ -13,6 +13,6 @@ pub trait Window {
     fn name(&self) -> &str;
 
     /// Window draw function
-    fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool);
+    fn show(&mut self, ctx: &egui::Context, open: &mut bool);
 
 }

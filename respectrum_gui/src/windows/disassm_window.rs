@@ -4,6 +4,14 @@ use super::Window;
 
 pub struct DisassmWindow {}
 
+impl DisassmWindow {
+
+    pub fn new() -> Self {
+        Self { }
+    }
+
+}
+
 impl Window for DisassmWindow {
 
     fn name(&self) -> &str {

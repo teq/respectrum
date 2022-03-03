@@ -1,8 +1,6 @@
-use std::rc::Rc;
-use std::ops::Index;
-use std::cell::Cell;
+use std::{cell::Cell, rc::Rc, ops::Index};
 
-use crate::bus::{Clock, CpuBus, Device, Ctls, NoReturnTask};
+use crate::bus::{Clock, CpuBus, Ctls, NoReturnTask};
 
 /// Standard dynamic 48k memory
 pub struct Dynamic48k {
@@ -23,7 +21,7 @@ impl Dynamic48k {
     }
 
     /// Load data to the memory at the given address
-    pub fn load(&mut self, addr: u16, data: &Vec<u8>) {
+    pub fn load(&self, addr: u16, data: &Vec<u8>) {
         for (index, &byte) in data.iter().enumerate() {
             self.memory[addr as usize + index].set(byte)
         }
@@ -43,9 +41,9 @@ impl Index<u16> for Dynamic48k {
     }
 }
 
-impl Device for Dynamic48k {
+impl Dynamic48k {
 
-    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    pub fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 

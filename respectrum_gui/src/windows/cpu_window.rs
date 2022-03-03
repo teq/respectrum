@@ -5,7 +5,15 @@ use std::rc::Rc;
 use super::Window;
 
 pub struct CpuWindow {
-    pub cpu_state: Rc<cpu::CpuState>,
+    cpu_state: Rc<cpu::CpuState>,
+}
+
+impl CpuWindow {
+
+    pub fn new(cpu_state: Rc<cpu::CpuState>) -> Self {
+        Self { cpu_state: cpu_state.clone() }
+    }
+
 }
 
 impl Window for CpuWindow {

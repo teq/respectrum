@@ -14,14 +14,6 @@ pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;
 /// as an offset in half t-cycles to the current clock
 pub trait NoReturnTask = Task<!>;
 
-/// Generic bus device
-pub trait Device {
-
-    /// Create task to run with the scheduler
-    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a>;
-
-}
-
 /// Clock-synced tasks scheduler
 pub struct Scheduler<'a> {
 
@@ -41,8 +33,7 @@ impl<'a> Scheduler<'a> {
     }
 
     /// Add new device
-    pub fn add(&mut self, device: &'a dyn Device) {
-        let task = device.run();
+    pub fn add(&mut self, task: Box<dyn NoReturnTask + 'a>) {
         self.tasks.push((self.clock.get(), task));
     }
 
@@ -96,7 +87,7 @@ mod tests {
     }
 
     struct Foo { state: Rc<SharedState> }
-    impl Device for Foo {
+    impl Foo {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(move || {
                 loop {
@@ -108,7 +99,7 @@ mod tests {
     }
 
     struct Bar { state: Rc<SharedState> }
-    impl Device for Bar {
+    impl Bar {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(move || {
                 loop {
@@ -133,8 +124,8 @@ mod tests {
         let bar = Bar { state: Rc::clone(&state) };
 
         let mut scheduler = Scheduler::new(clock);
-        scheduler.add(&foo);
-        scheduler.add(&bar);
+        scheduler.add(foo.run());
+        scheduler.add(bar.run());
 
         scheduler.advance(10);
         assert_eq!(

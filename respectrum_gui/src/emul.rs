@@ -2,7 +2,12 @@ extern crate librespectrum;
 
 use librespectrum::{bus, cpu, devs};
 use eframe::{egui, epi};
-use std::{rc::Rc, vec::Vec};
+use std::{
+    rc::Rc,
+    vec::Vec,
+    fs::File,
+    io::{prelude::*, SeekFrom}, borrow::BorrowMut,
+};
 
 mod windows;
 use windows::{Window, CpuWindow, DisassmWindow, MemoryWindow};
@@ -55,14 +60,19 @@ fn main() {
     let clock: Rc<bus::Clock> = Default::default();
     let cpu_state: Rc<cpu::CpuState> = Default::default();
 
-    let cpu = cpu::Cpu::new(&bus, &clock, &cpu_state);
-    let mem = devs::mem::Dynamic48k::new(&bus, &clock);
+    let cpu = Rc::new(cpu::Cpu::new(&bus, &clock, &cpu_state));
+    let mem = Rc::new(devs::mem::Dynamic48k::new(&bus, &clock));
+
+    let mut file = File::open("roms/48.rom").unwrap();
+    let mut buffer: Vec<u8> = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    mem.load(0, &buffer);
 
     let app = EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow { cpu_state })),
-            (false, Box::new(DisassmWindow {})),
-            (true, Box::new(MemoryWindow {})),
+            (true, Box::new(CpuWindow::new(cpu_state))),
+            (false, Box::new(DisassmWindow::new())),
+            (true, Box::new(MemoryWindow::new(mem))),
         ]
     };
 
@@ -70,7 +80,7 @@ fn main() {
     eframe::run_native(Box::new(app), native_options);
 
     let mut scheduler = bus::Scheduler::new(clock);
-    scheduler.add(&cpu);
-    scheduler.add(&mem);
+    scheduler.add(cpu.run());
+    scheduler.add(mem.run());
 
 }

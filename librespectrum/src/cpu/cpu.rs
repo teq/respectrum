@@ -7,7 +7,7 @@ use crate::{
     mkword,
     spword,
     yield_from,
-    bus::{Device, NoReturnTask, Clock, CpuBus, Task, Ctls, Outs},
+    bus::{NoReturnTask, Clock, CpuBus, Task, Ctls, Outs},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp},
         InstructionDecoder, Flags
@@ -50,10 +50,19 @@ fn parity(value: u8) -> bool {
     value.count_ones() % 2 == 0
 }
 
-impl Device for Cpu {
+impl Cpu {
+
+    // Create new CPU instance
+    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>, state: &Rc<CpuState>) -> Self {
+        Self {
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
+            state: Rc::clone(state)
+        }
+    }
 
     /// Run CPU device task
-    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    pub fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 
@@ -488,19 +497,6 @@ impl Device for Cpu {
 
         })
 
-    }
-
-}
-
-impl Cpu {
-
-    // Create new CPU instance
-    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>, state: &Rc<CpuState>) -> Self {
-        Self {
-            bus: Rc::clone(bus),
-            clock: Rc::clone(clock),
-            state: Rc::clone(state)
-        }
     }
 
     /// Get reference to register value

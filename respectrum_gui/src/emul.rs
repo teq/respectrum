@@ -6,27 +6,26 @@ use std::{
     rc::Rc,
     vec::Vec,
     fs::File,
-    io::{prelude::*, SeekFrom}, borrow::BorrowMut,
+    io::Read,
+    ops::Deref,
 };
 
 mod windows;
-use windows::{Window, CpuWindow, DisassmWindow, MemoryWindow};
+use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow};
 
 struct EmulApp {
-    windows: Vec<(bool, Box<dyn Window>)>
+    windows: Vec<(bool, Box<dyn SubWindow>)>
 }
 
 impl epi::App for EmulApp {
 
-    fn name(&self) -> &str {
-        "reSpectrum - ZX Spectrum emulator"
-    }
+    fn name(&self) -> &str { "reSpectrum - ZX Spectrum emulator" }
 
     fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
 
-        // let mut style: egui::Style = Default::default();
-        // style.visuals.override_text_color = Some(egui::Color32::RED);
-        // ctx.set_style(style);
+        let mut style = ctx.style().deref().clone();
+        style.override_text_style = Some(egui::TextStyle::Monospace);
+        ctx.set_style(style);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -60,8 +59,8 @@ fn main() {
     let clock: Rc<bus::Clock> = Default::default();
     let cpu_state: Rc<cpu::CpuState> = Default::default();
 
-    let cpu = Rc::new(cpu::Cpu::new(&bus, &clock, &cpu_state));
-    let mem = Rc::new(devs::mem::Dynamic48k::new(&bus, &clock));
+    let cpu = Rc::new(cpu::Cpu::new(bus.clone(), clock.clone(), cpu_state.clone()));
+    let mem = Rc::new(devs::mem::Dynamic48k::new(bus.clone(), clock.clone()));
 
     let mut file = File::open("roms/48.rom").unwrap();
     let mut buffer: Vec<u8> = Vec::new();
@@ -70,9 +69,9 @@ fn main() {
 
     let app = EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(cpu_state))),
-            (false, Box::new(DisassmWindow::new())),
-            (true, Box::new(MemoryWindow::new(mem))),
+            (true, Box::new(CpuWindow::new(cpu_state.clone()))),
+            (true, Box::new(DisassmWindow::new(mem.clone()))),
+            (true, Box::new(MemoryWindow::new(mem.clone()))),
         ]
     };
 

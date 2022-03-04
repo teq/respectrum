@@ -12,10 +12,9 @@ pub struct Dynamic48k {
 impl Dynamic48k {
 
     /// Create new memory instance
-    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
         Self {
-            bus: Rc::clone(bus),
-            clock: Rc::clone(clock),
+            bus, clock,
             memory: vec![Default::default(); usize::pow(2, 16)]
         }
     }

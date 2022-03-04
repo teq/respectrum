@@ -53,12 +53,8 @@ fn parity(value: u8) -> bool {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>, state: &Rc<CpuState>) -> Self {
-        Self {
-            bus: Rc::clone(bus),
-            clock: Rc::clone(clock),
-            state: Rc::clone(state)
-        }
+    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>, state: Rc<CpuState>) -> Self {
+        Self { bus, clock, state }
     }
 
     /// Run CPU device task

@@ -7,7 +7,7 @@ use librespectrum::tools;
 use std::{
     pin::Pin,
     fs::File,
-    io::{prelude::*, SeekFrom},
+    io::{Read, Seek, SeekFrom},
     ops::{Generator, GeneratorState},
 };
 

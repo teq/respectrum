@@ -7,7 +7,7 @@ pub use disassm_window::DisassmWindow;
 mod memory_window;
 pub use memory_window::MemoryWindow;
 
-pub trait Window {
+pub trait SubWindow {
 
     /// Window name
     fn name(&self) -> &str;

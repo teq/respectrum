@@ -1,8 +1,8 @@
+use eframe::egui::*;
 use librespectrum::cpu;
-use eframe::egui;
 use std::rc::Rc;
 
-use super::Window;
+use super::SubWindow;
 
 pub struct CpuWindow {
     cpu_state: Rc<cpu::CpuState>,
@@ -11,32 +11,30 @@ pub struct CpuWindow {
 impl CpuWindow {
 
     pub fn new(cpu_state: Rc<cpu::CpuState>) -> Self {
-        Self { cpu_state: cpu_state.clone() }
+        Self { cpu_state }
     }
 
 }
 
-impl Window for CpuWindow {
+impl SubWindow for CpuWindow {
 
-    fn name(&self) -> &str {
-        "CPU"
-    }
+    fn name(&self) -> &str { "CPU" }
 
-    fn show(&mut self, ctx: &egui::Context, open: &mut bool) {
+    fn show(&mut self, ctx: &Context, open: &mut bool) {
 
-        let reg_label = |ui: &mut egui::Ui, label: &str, value: u16| {
+        let reg_label = |ui: &mut Ui, label: &str, value: u16| {
             ui.label(label);
             ui.label(format!("{:04X}", value));
         };
 
-        let flag_label = |ui: &mut egui::Ui, label: &str, is_set: bool| {
-            let color = if is_set { egui::Color32::GREEN } else { egui::Color32::GRAY };
+        let flag_label = |ui: &mut Ui, label: &str, is_set: bool| {
+            let color = if is_set { Color32::GREEN } else { Color32::GRAY };
             ui.colored_label(color, label);
         };
 
-        egui::Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
+        Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
 
-            egui::Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
+            Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 
                 reg_label(ui, "AF:", self.cpu_state.af.word().get());
                 reg_label(ui, "AF':", self.cpu_state.alt_af.word().get());
@@ -79,7 +77,7 @@ impl Window for CpuWindow {
             });
 
             ui.horizontal(|ui| {
-                ui.colored_label(egui::Color32::WHITE, format!("IM{}", self.cpu_state.im));
+                ui.colored_label(Color32::WHITE, format!("IM{}", self.cpu_state.im));
                 flag_label(ui, "IFF1", self.cpu_state.iff1);
                 flag_label(ui, "IFF2", self.cpu_state.iff2);
             });

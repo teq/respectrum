@@ -1,5 +1,6 @@
 use eframe::egui::*;
-use std::{cmp::min, cell::Cell, ops::Index, rc::Rc};
+use librespectrum::devs::mem::Memory;
+use std::{cmp::min, rc::Rc};
 
 use super::SubWindow;
 
@@ -11,7 +12,7 @@ enum Cursor {
 }
 
 pub struct MemoryWindow {
-    mem_state: Rc<dyn Index<u16, Output = Cell<u8>>>,
+    memory: Rc<dyn Memory>,
     cols: usize,
     rows: usize,
     addr: u16,
@@ -20,8 +21,8 @@ pub struct MemoryWindow {
 
 impl MemoryWindow {
 
-    pub fn new(mem_state: Rc<dyn Index<u16, Output = Cell<u8>>>) -> Self {
-        Self { mem_state, cols: 8, rows: 16, addr: 0, cursor: Cursor::Address(0) }
+    pub fn new(memory: Rc<dyn Memory>) -> Self {
+        Self { memory, cols: 8, rows: 16, addr: 0, cursor: Cursor::Address(0) }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {
@@ -157,14 +158,18 @@ impl SubWindow for MemoryWindow {
 
                     for col in 0..self.cols {
 
+                        let addr = row_addr.overflowing_add(col as u16).0;
+
                         let label = Label::new(
                             RichText::new(
-                                format!("{:02X}", self.mem_state[row_addr.overflowing_add(col as u16).0].get())
+                                format!("{:02X}", self.memory[addr].get())
                             ).background_color(
                                 match self.cursor {
                                     Cursor::Memory(c, r) if (c, r) == (col, row) => Color32::LIGHT_BLUE,
                                     _ => Color32::default()
                                 }
+                            ).color(
+                                if self.memory.writable(addr) {Color32::BLACK} else {Color32::GRAY}
                             )
                         ).sense(Sense::click());
 
@@ -182,7 +187,9 @@ impl SubWindow for MemoryWindow {
 
                         for col in 0..self.cols {
 
-                            let byte = self.mem_state[row_addr.overflowing_add(col as u16).0].get();
+                            let addr = row_addr.overflowing_add(col as u16).0;
+
+                            let byte = self.memory[addr].get();
 
                             let is_ascii = byte.is_ascii_alphanumeric() || byte.is_ascii_graphic()
                                 || byte.is_ascii_punctuation() || byte == 0x20 /* space */;

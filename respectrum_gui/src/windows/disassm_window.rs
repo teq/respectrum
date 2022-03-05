@@ -1,17 +1,18 @@
 use eframe::egui::*;
-use std::{cell::Cell, ops::Index, rc::Rc};
+use librespectrum::devs::mem::Memory;
+use std::rc::Rc;
 
 use super::SubWindow;
 
 pub struct DisassmWindow {
-    mem_state: Rc<dyn Index<u16, Output = Cell<u8>>>,
+    memory: Rc<dyn Memory>,
     addr: u16,
 }
 
 impl DisassmWindow {
 
-    pub fn new(mem_state: Rc<dyn Index<u16, Output = Cell<u8>>>) -> Self {
-        Self { mem_state, addr: 0 }
+    pub fn new(mem_state: Rc<dyn Memory>) -> Self {
+        Self { memory: mem_state, addr: 0 }
     }
 
 }

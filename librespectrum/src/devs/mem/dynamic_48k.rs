@@ -1,6 +1,7 @@
 use std::{cell::Cell, rc::Rc, ops::Index};
 
 use crate::bus::{Clock, CpuBus, Ctls, NoReturnTask};
+use super::Memory;
 
 /// Standard dynamic 48k memory
 pub struct Dynamic48k {
@@ -26,11 +27,13 @@ impl Dynamic48k {
         }
     }
 
+}
+
+impl Memory for Dynamic48k {
     /// Check if given address is writable (located in RAM)
-    pub fn writable(&self, addr: u16) -> bool {
+    fn writable(&self, addr: u16) -> bool {
         addr & 0xc000 != 0 // First 16KB are not writable (ROM)
     }
-
 }
 
 impl Index<u16> for Dynamic48k {

@@ -2,7 +2,7 @@ use eframe::egui::*;
 use librespectrum::cpu;
 use std::rc::Rc;
 
-use super::SubWindow;
+use super::{SubWindow, draw_window};
 
 pub struct CpuWindow {
     cpu_state: Rc<cpu::CpuState>,
@@ -18,9 +18,9 @@ impl CpuWindow {
 
 impl SubWindow for CpuWindow {
 
-    fn name(&self) -> &str { "CPU" }
+    fn name(&self) -> String { String::from("CPU") }
 
-    fn show(&mut self, ctx: &Context, open: &mut bool) {
+    fn show(&mut self, ctx: &Context, focused: bool) -> Response {
 
         let reg_label = |ui: &mut Ui, label: &str, value: u16| {
             ui.label(label);
@@ -32,7 +32,7 @@ impl SubWindow for CpuWindow {
             ui.colored_label(color, label);
         };
 
-        Window::new(self.name()).resizable(false).open(open).show(ctx, |ui| {
+        draw_window(self.name(), focused, ctx, |ui| {
 
             Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 
@@ -82,7 +82,7 @@ impl SubWindow for CpuWindow {
                 flag_label(ui, "IFF2", self.cpu_state.iff2);
             });
 
-        });
+        })
 
     }
 

@@ -1,4 +1,5 @@
-use eframe::egui;
+use std::hash::Hash;
+use eframe::egui::*;
 
 mod cpu_window;
 pub use cpu_window::CpuWindow;
@@ -10,9 +11,56 @@ pub use memory_window::MemoryWindow;
 pub trait SubWindow {
 
     /// Window name
-    fn name(&self) -> &str;
+    fn name(&self) -> String;
 
     /// Window draw function
-    fn show(&mut self, ctx: &egui::Context, open: &mut bool);
+    fn show(&mut self, ctx: &Context, focused: bool) -> Response;
 
+}
+
+/// Draw widow with title
+pub fn draw_window(
+    name: impl Into<String> + Hash,
+    focused: bool,
+    ctx: &Context,
+    add_contents: impl FnOnce(&mut Ui) -> (),
+) -> Response {
+
+    Area::new(&name).show(ctx, |ui| {
+
+        Frame::window(&ctx.style())
+            .margin(style::Margin::same(0.0))
+            .fill(if focused {Color32::LIGHT_BLUE} else {Color32::LIGHT_GRAY})
+            .show(ui, |ui|
+        {
+
+            Frame::window(&ctx.style())
+                .stroke(Stroke::none())
+                .fill(Color32::TRANSPARENT)
+                .show(ui, |ui|
+            {
+                ui.add(Label::new(RichText::new(name).color(
+                    if focused {Color32::BLACK} else {Color32::GRAY}
+                )));
+            });
+
+            Frame::window(&ctx.style())
+                .rounding(Rounding {
+                    nw: 0.0, ne: 0.0,
+                    ..ctx.style().visuals.window_rounding
+                })
+                .stroke(Stroke::none())
+                .show(ui, |ui|
+            {
+                add_contents(ui);
+            });
+
+        });
+
+    }).response
+
+}
+
+pub fn cursor_color(focused: bool) -> Color32 {
+    if focused {Color32::LIGHT_BLUE} else {Color32::LIGHT_GRAY}
 }

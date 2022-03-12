@@ -1,8 +1,9 @@
-use eframe::egui::*;
-use librespectrum::devs::mem::Memory;
 use std::{cmp::min, rc::Rc};
+use eframe::egui::*;
 
-use super::SubWindow;
+use librespectrum::devs::mem::Memory;
+
+use super::{SubWindow, draw_window, cursor_color};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Cursor {
@@ -125,13 +126,15 @@ impl MemoryWindow {
 
 impl SubWindow for MemoryWindow {
 
-    fn name(&self) -> &str { "Memory" }
+    fn name(&self) -> String { String::from("Memory") }
 
-    fn show(&mut self, ctx: &Context, open: &mut bool) {
+    fn show(&mut self, ctx: &Context, focused: bool) -> Response {
 
-        Window::new(self.name()).auto_sized().collapsible(false).open(open).show(ctx, |ui| {
+        draw_window(self.name(), focused, ctx, |ui| {
 
-            self.handle_keyboard(&ui.input());
+            if focused {
+                self.handle_keyboard(&ui.input());
+            }
 
             Grid::new("memory").min_col_width(0.0).show(ui, |ui| {
 
@@ -143,10 +146,7 @@ impl SubWindow for MemoryWindow {
                         RichText::new(
                             format!("{:04X}", row_addr)
                         ).background_color(
-                            match self.cursor {
-                                Cursor::Address(r) if r == row => Color32::LIGHT_BLUE,
-                                _ => Color32::default()
-                            }
+                            if self.cursor == Cursor::Address(row) {cursor_color(focused)} else {Color32::default()}
                         )
                     ).sense(Sense::click());
 
@@ -164,10 +164,7 @@ impl SubWindow for MemoryWindow {
                             RichText::new(
                                 format!("{:02X}", self.memory[addr].get())
                             ).background_color(
-                                match self.cursor {
-                                    Cursor::Memory(c, r) if (c, r) == (col, row) => Color32::LIGHT_BLUE,
-                                    _ => Color32::default()
-                                }
+                                if self.cursor == Cursor::Memory(col, row) {cursor_color(focused)} else {Color32::default()}
                             ).color(
                                 if self.memory.writable(addr) {Color32::BLACK} else {Color32::GRAY}
                             )
@@ -198,10 +195,7 @@ impl SubWindow for MemoryWindow {
                                 RichText::new(
                                     (if is_ascii {byte as char} else {'.'}).to_string()
                                 ).background_color(
-                                    match self.cursor {
-                                        Cursor::Text(c, r) if (c, r) == (col, row) => Color32::LIGHT_BLUE,
-                                        _ => Color32::default()
-                                    }
+                                    if self.cursor == Cursor::Text(col, row) {cursor_color(focused)} else {Color32::default()}
                                 ).color(
                                     if is_ascii {Color32::DARK_GRAY} else {Color32::LIGHT_GRAY}
                                 )
@@ -221,7 +215,7 @@ impl SubWindow for MemoryWindow {
 
             });
 
-        });
+        })
 
     }
 

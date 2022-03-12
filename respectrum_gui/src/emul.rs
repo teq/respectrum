@@ -1,3 +1,5 @@
+#![feature(generators, generator_trait)]
+
 extern crate librespectrum;
 
 use librespectrum::{bus, cpu, devs};
@@ -14,7 +16,8 @@ mod windows;
 use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow};
 
 struct EmulApp {
-    windows: Vec<(bool, Box<dyn SubWindow>)>
+    windows: Vec<(bool, Box<dyn SubWindow>)>,
+    focus: Option<usize>,
 }
 
 impl epi::App for EmulApp {
@@ -45,8 +48,13 @@ impl epi::App for EmulApp {
             });
         });
 
-        for (open, window) in &mut self.windows {
-            window.show(ctx, open);
+        for (idx, (open, window)) in self.windows.iter_mut().enumerate() {
+            if *open {
+                let response = window.show(ctx, self.focus == Some(idx));
+                if response.clicked() || response.drag_started() {
+                    self.focus = Some(idx);
+                }
+            }
         }
 
     }
@@ -72,7 +80,8 @@ fn main() {
             (true, Box::new(CpuWindow::new(cpu_state.clone()))),
             (true, Box::new(DisassmWindow::new(mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
-        ]
+        ],
+        focus: Some(0),
     };
 
     let native_options = eframe::NativeOptions::default();

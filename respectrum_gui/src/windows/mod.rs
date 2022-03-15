@@ -44,6 +44,8 @@ pub fn draw_window(
                 )));
             });
 
+            ui.add_space(-3.0);
+
             Frame::window(&ctx.style())
                 .rounding(Rounding {
                     nw: 0.0, ne: 0.0,

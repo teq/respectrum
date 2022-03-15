@@ -17,7 +17,7 @@ use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow};
 
 struct EmulApp {
     windows: Vec<(bool, Box<dyn SubWindow>)>,
-    focus: Option<usize>,
+    focus: usize,
 }
 
 impl epi::App for EmulApp {
@@ -50,9 +50,9 @@ impl epi::App for EmulApp {
 
         for (idx, (open, window)) in self.windows.iter_mut().enumerate() {
             if *open {
-                let response = window.show(ctx, self.focus == Some(idx));
+                let response = window.show(ctx, self.focus == idx);
                 if response.clicked() || response.drag_started() {
-                    self.focus = Some(idx);
+                    self.focus = idx;
                 }
             }
         }
@@ -81,10 +81,14 @@ fn main() {
             (true, Box::new(DisassmWindow::new(mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
         ],
-        focus: Some(0),
+        focus: 0,
     };
 
-    let native_options = eframe::NativeOptions::default();
+    let native_options = eframe::NativeOptions {
+        initial_window_size: Some(egui::vec2(1024.0, 768.0)),
+        min_window_size: Some(egui::vec2(800.0, 600.0)),
+        ..Default::default()
+    };
     eframe::run_native(Box::new(app), native_options);
 
     let mut scheduler = bus::Scheduler::new(clock);

@@ -1,63 +1,62 @@
-use crate::cpu::tokens::{Token, ShiftOp, BlockOp, IntMode, Condition, AluOp, Reg, RegPair, DataValue};
-use super::CpuInstruction;
+use std::fmt;
 
-#[derive(Default)]
-pub struct InstructionFormatOptions {
-    /// Convert relative addresses to absolute. **Default: `false`**
-    pub calc_rel_addrs: Option<bool>,
+use crate::cpu::tokens::{
+    Token, ShiftOp, BlockOp,
+    IntMode, Condition, AluOp, Reg,
+    RegPair, DataValue
+};
+
+/// Z80 CPU instruction
+pub struct Instruction {
+    pub opcode: Token,
+    pub displacement: Option<i8>,
+    pub data: Option<DataValue>,
 }
 
-/// Z80 instruction formatter
-#[derive(Default)]
-pub struct InstructionFormatter {
-    options: InstructionFormatOptions
+impl fmt::Display for Instruction {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.format_mnemonic().as_str())
+    }
 }
 
-impl InstructionFormatter {
+impl Instruction {
 
-    /// Create new formatter instance
-    pub fn new(options: InstructionFormatOptions) -> InstructionFormatter {
-        InstructionFormatter { options }
+    pub fn expect_displacement(&self) -> i8 {
+        self.displacement.expect("Expecting displacement to be defined")
     }
 
-    /// Format all fields
-    pub fn format(&self, inst: &CpuInstruction) -> String {
-        format!(
-            "{}: {:<11} | {}",
-            self.format_addr(inst),
-            self.format_bytes(inst),
-            self.format_mnemonic(inst)
-        )
+    pub fn expect_byte_data(&self) -> u8 {
+        if let Some(DataValue::Byte(value)) = self.data {
+            value
+        } else {
+            panic!("Expecting immediate data to be a byte");
+        }
     }
 
-    /// Format address field
-    pub fn format_addr(&self, inst: &CpuInstruction) -> String {
-        format!("{:0>4X}", inst.addr)
+    pub fn expect_word_data(&self) -> u16 {
+        if let Some(DataValue::Word(value)) = self.data {
+            value
+        } else {
+            panic!("Expecting immediate data to be a word");
+        }
     }
 
-    /// Format operation bytes
-    pub fn format_bytes(&self, inst: &CpuInstruction) -> String {
-        let bytes = &inst.bytes[..inst.len as usize];
-        let strings: Vec<String> = bytes.iter().map(|byte| format!("{:0>2X}", byte)).collect();
-        strings.join(" ")
-    }
+    pub fn format_mnemonic(&self) -> String {
 
-    pub fn format_mnemonic(&self, inst: &CpuInstruction) -> String {
-
-        match &inst.opcode {
+        match &self.opcode {
 
             // 8-bit Load
-            Token::LD_RG_RG(dst, src) => format!("LD {},{}", self.format_reg(dst, inst), self.format_reg(src, inst)),
-            Token::LD_RG_N(reg) => format!("LD {},{}", self.format_reg(reg, inst), self.format_data(inst)),
+            Token::LD_RG_RG(dst, src) => format!("LD {},{}", self.format_reg(dst), self.format_reg(src)),
+            Token::LD_RG_N(reg) => format!("LD {},{}", self.format_reg(reg), self.format_data()),
             Token::LD_A_AtRP(rpair) => format!("LD A,({})", self.format_regpair(rpair)),
             Token::LD_AtRP_A(rpair) => format!("LD ({}),A", self.format_regpair(rpair)),
-            Token::LD_A_MM => format!("LD A,({})", self.format_data(inst)),
-            Token::LD_MM_A => format!("LD ({}),A", self.format_data(inst)),
+            Token::LD_A_MM => format!("LD A,({})", self.format_data()),
+            Token::LD_MM_A => format!("LD ({}),A", self.format_data()),
 
             // 16-bit Load
-            Token::LD_RP_NN(rpair) => format!("LD {},{}", self.format_regpair(rpair), self.format_data(inst)),
-            Token::LD_RP_MM(rpair) => format!("LD {},({})", self.format_regpair(rpair), self.format_data(inst)),
-            Token::LD_MM_RP(rpair) => format!("LD ({}),{}", self.format_data(inst), self.format_regpair(rpair)),
+            Token::LD_RP_NN(rpair) => format!("LD {},{}", self.format_regpair(rpair), self.format_data()),
+            Token::LD_RP_MM(rpair) => format!("LD {},({})", self.format_regpair(rpair), self.format_data()),
+            Token::LD_MM_RP(rpair) => format!("LD ({}),{}", self.format_data(), self.format_regpair(rpair)),
             Token::LD_SP_RP(rpair) => format!("LD SP,{}", self.format_regpair(rpair)),
             Token::POP(rpair) => format!("POP {}", self.format_regpair(rpair)),
             Token::PUSH(rpair) => format!("PUSH {}", self.format_regpair(rpair)),
@@ -71,13 +70,13 @@ impl InstructionFormatter {
             // 8-bit arithmetic and logic
             Token::ALU(op, maybe_reg) => {
                 if let Some(reg) = maybe_reg {
-                    self.format_alu_op(op, &self.format_reg(reg, inst))
+                    self.format_alu_op(op, &self.format_reg(reg))
                 } else {
-                    self.format_alu_op(op, &self.format_data(inst))
+                    self.format_alu_op(op, &self.format_data())
                 }
             },
-            Token::INC_RG(reg) => format!("INC {}", self.format_reg(reg, inst)),
-            Token::DEC_RG(reg) => format!("DEC {}", self.format_reg(reg, inst)),
+            Token::INC_RG(reg) => format!("INC {}", self.format_reg(reg)),
+            Token::DEC_RG(reg) => format!("DEC {}", self.format_reg(reg)),
 
             // General-Purpose Arithmetic and CPU Control
             Token::DAA => String::from("DAA"),
@@ -108,55 +107,55 @@ impl InstructionFormatter {
             Token::RRCA => String::from("RRCA"),
             Token::RRA => String::from("RRA"),
             Token::SHOP(op, reg) => match op {
-                ShiftOp::RLC => format!("RLC {}", self.format_reg(reg, inst)),
-                ShiftOp::RRC => format!("RRC {}", self.format_reg(reg, inst)),
-                ShiftOp::RL => format!("RL {}", self.format_reg(reg, inst)),
-                ShiftOp::RR => format!("RR {}", self.format_reg(reg, inst)),
-                ShiftOp::SLA => format!("SLA {}", self.format_reg(reg, inst)),
-                ShiftOp::SRA => format!("SRA {}", self.format_reg(reg, inst)),
-                ShiftOp::SLL => format!("SLL {}", self.format_reg(reg, inst)),
-                ShiftOp::SRL => format!("SRL {}", self.format_reg(reg, inst)),
+                ShiftOp::RLC => format!("RLC {}", self.format_reg(reg)),
+                ShiftOp::RRC => format!("RRC {}", self.format_reg(reg)),
+                ShiftOp::RL => format!("RL {}", self.format_reg(reg)),
+                ShiftOp::RR => format!("RR {}", self.format_reg(reg)),
+                ShiftOp::SLA => format!("SLA {}", self.format_reg(reg)),
+                ShiftOp::SRA => format!("SRA {}", self.format_reg(reg)),
+                ShiftOp::SLL => format!("SLL {}", self.format_reg(reg)),
+                ShiftOp::SRL => format!("SRL {}", self.format_reg(reg)),
             },
             Token::RLD => String::from("RLD"),
             Token::RRD => String::from("RRD"),
             Token::SHOPLD(op, reg, dst) => match op {
-                ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::RL => format!("RL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::RR => format!("RR {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::SLA => format!("SLA {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
-                ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg, inst), self.format_reg(dst, inst)),
+                ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::RL => format!("RL {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::RR => format!("RR {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::SLA => format!("SLA {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg), self.format_reg(dst)),
+                ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg), self.format_reg(dst)),
             },
 
             // Bit Set, Reset and Test
-            Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg, inst)),
-            Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg, inst)),
+            Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg)),
+            Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg)),
             Token::SETLD(bit, reg, dst) => format!(
                 "SET {},{},{}",
-                bit, self.format_reg(reg, inst), self.format_reg(dst, inst)
+                bit, self.format_reg(reg), self.format_reg(dst)
             ),
-            Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg, inst)),
+            Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg)),
             Token::RESLD(bit, reg, dst) => format!(
                 "RES {},{},{}",
-                bit, self.format_reg(reg, inst), self.format_reg(dst, inst)
+                bit, self.format_reg(reg), self.format_reg(dst)
             ),
 
             // Jump, Call and Return
             Token::JP(cond) => match cond {
-                Condition::None => format!("JP {}", self.format_data(inst)),
-                _ => format!("JP {},{}", self.format_condition(cond), self.format_data(inst))
+                Condition::None => format!("JP {}", self.format_data()),
+                _ => format!("JP {},{}", self.format_condition(cond), self.format_data())
             },
             Token::JP_RP(rpair) => format!("JP ({})", self.format_regpair(rpair)),
             Token::JR(cond) => match cond {
-                Condition::None => format!("JR {}", self.format_addr_displacement(inst)),
-                _ => format!("JR {},{}", self.format_condition(cond), self.format_addr_displacement(inst))
+                Condition::None => format!("JR {}", self.format_addr_displacement()),
+                _ => format!("JR {},{}", self.format_condition(cond), self.format_addr_displacement())
             },
-            Token::DJNZ => format!("DJNZ {}", self.format_addr_displacement(inst)),
+            Token::DJNZ => format!("DJNZ {}", self.format_addr_displacement()),
             Token::CALL(cond) => match cond {
-                Condition::None => format!("CALL {}", self.format_data(inst)),
-                _ => format!("CALL {},{}", self.format_condition(cond), self.format_data(inst))
+                Condition::None => format!("CALL {}", self.format_data()),
+                _ => format!("CALL {},{}", self.format_condition(cond), self.format_data())
             },
             Token::RET(cond) => match cond {
                 Condition::None => String::from("RET"),
@@ -167,10 +166,10 @@ impl InstructionFormatter {
             Token::RST(value) => format!("RST {}", self.format_byte(value * 8)),
 
             // IO
-            Token::IN_A_N => format!("IN A,({})", self.format_data(inst)),
-            Token::OUT_N_A => format!("OUT ({}),A", self.format_data(inst)),
-            Token::IN_RG_AtBC(reg) => format!("IN {},(C)", self.format_reg(reg, inst)),
-            Token::OUT_AtBC_RG(reg) => format!("OUT (C),{}", self.format_reg(reg, inst)),
+            Token::IN_A_N => format!("IN A,({})", self.format_data()),
+            Token::OUT_N_A => format!("OUT ({}),A", self.format_data()),
+            Token::IN_RG_AtBC(reg) => format!("IN {},(C)", self.format_reg(reg)),
+            Token::OUT_AtBC_RG(reg) => format!("OUT (C),{}", self.format_reg(reg)),
             Token::IN_AtBC => String::from("IN (C)"),
             Token::OUT_AtBC_0 => String::from("OUT (C),0"),
 
@@ -227,7 +226,7 @@ impl InstructionFormatter {
         }
     }
 
-    fn format_reg(&self, reg: &Reg, inst: &CpuInstruction) -> String {
+    fn format_reg(&self, reg: &Reg) -> String {
         match reg {
             Reg::B => String::from("B"),
             Reg::C => String::from("C"),
@@ -244,11 +243,11 @@ impl InstructionFormatter {
             Reg::IYH => String::from("IYH"),
             Reg::IYL => String::from("IYL"),
             Reg::AtIX => {
-                let displacement = inst.displacement.unwrap();
+                let displacement = self.displacement.unwrap();
                 format!("(IX{})", self.format_number_with_sign(displacement as i32))
             },
             Reg::AtIY => {
-                let displacement = inst.displacement.unwrap();
+                let displacement = self.displacement.unwrap();
                 format!("(IY{})", self.format_number_with_sign(displacement as i32))
             },
             other => unreachable!("{:?}", other)
@@ -268,22 +267,19 @@ impl InstructionFormatter {
         }
     }
 
-    fn format_data(&self, inst: &CpuInstruction) -> String {
-        match inst.data {
+    fn format_data(&self) -> String {
+        match self.data {
             Some(DataValue::Byte(byte)) => self.format_byte(byte),
             Some(DataValue::Word(word)) => self.format_word(word),
             _ => panic!("Expecting immediate data")
         }
     }
 
-    fn format_addr_displacement(&self, inst: &CpuInstruction) -> String {
-        let displacement = inst.displacement.unwrap() as i32 + 2;
-        if self.calc_rel_addrs() {
-            let addr = (inst.addr as i32 + displacement) as u16;
-            format!("{}", self.format_word(addr))
-        } else {
-            format!("${}", self.format_number_with_sign(displacement))
-        }
+    fn format_addr_displacement(&self) -> String {
+        let displacement = self.displacement.unwrap() as i32 + 2;
+        // let addr = (self.addr as i32 + displacement) as u16;
+        // format!("{}", self.format_word(addr))
+        format!("${}", self.format_number_with_sign(displacement))
     }
 
     fn format_byte(&self, byte: u8) -> String {
@@ -296,10 +292,6 @@ impl InstructionFormatter {
 
     fn format_number_with_sign(&self, num: i32) -> String {
         format!("{}{:X}h", (if num < 0 { "-" } else { "+" }), num.abs())
-    }
-
-    fn calc_rel_addrs(&self) -> bool {
-        self.options.calc_rel_addrs.unwrap_or(false)
     }
 
 }

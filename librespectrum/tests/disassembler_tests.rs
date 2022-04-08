@@ -9,7 +9,7 @@ use std::{
     ops::{Generator, GeneratorState}
 };
 
-use librespectrum::tools;
+use librespectrum::cpu::decoder::instruction_decoder;
 
 #[test]
 fn disassembler_recognizes_all_z80_opcodes() {
@@ -17,14 +17,6 @@ fn disassembler_recognizes_all_z80_opcodes() {
     // File with reference listing
     let file = File::open("tests/misc/opcodes.lst").unwrap();
     let mut lines = io::BufReader::new(file).lines().enumerate();
-
-    let mut current_addr: u16 = 0;
-
-    // Disassembler to test
-    let mut disassembler = tools::disassembler(current_addr);
-
-    // Instruction formatter
-    let formatter: tools::InstructionFormatter = Default::default();
 
     // Iterate over listing lines
     while let Some((line_idx, Ok(line))) = lines.next() {
@@ -41,62 +33,43 @@ fn disassembler_recognizes_all_z80_opcodes() {
         // Split opcode bytes and parsed disassembled mnemonic
         let mut parts = body.split('|');
 
-        let expected_bytes = parts.next().unwrap().trim();
-        let expected_mnemonic = parts.next().unwrap().trim();
-
-        let mut bytes_iter = expected_bytes.split(" ")
+        let mut bytes_iter = parts.next().unwrap().trim().split(" ")
             .map(|s| u8::from_str_radix(s, 16).unwrap())
             .enumerate().peekable();
+        let expected_mnemonic = parts.next().unwrap().trim();
+
+        let mut decoder = instruction_decoder();
 
         // Feed bytes to disassembler and observe results
         while let Some((byte_num, byte)) = bytes_iter.next() {
 
-            if let GeneratorState::Yielded(maybe_op) = Pin::new(&mut disassembler).resume(byte) {
+            let result = Pin::new(&mut decoder).resume(byte);
 
-                if bytes_iter.peek().is_some() {
+            if bytes_iter.peek().is_some() {
 
-                    // Some bytes left in current opcode, disassembler should yield nothing
-                    if let Some(op) = maybe_op {
+                // Some bytes left in current opcode, disassembler should yield nothing
+                if let GeneratorState::Complete(instruction) = result {
+                    report_failure(format!(
+                        "Unexpected output when parsing byte number {}: {}",
+                        byte_num, instruction
+                    ));
+                }
+
+            } else {
+
+                // It's the last byte for current opcode, disassembler should yield a line
+                if let GeneratorState::Complete(instruction) = result {
+
+                    let formatted_mnemonic = instruction.format_mnemonic();
+                    if formatted_mnemonic != expected_mnemonic  {
                         report_failure(format!(
-                            "Unexpected output when parsing byte number {}: {}",
-                            byte_num, op
+                            "Wrong mnemonic. Expecting: {}, got: {}",
+                            expected_mnemonic, formatted_mnemonic
                         ));
                     }
 
                 } else {
-
-                    // It's the last byte for current opcode, disassembler should yield a line
-                    if let Some(op) = maybe_op {
-
-                        if current_addr != op.addr {
-                            report_failure(format!(
-                                "Wrong address. Expecting: {}, got: {}",
-                                current_addr, op.addr
-                            ));
-                        }
-
-                        let formatted_bytes = formatter.format_bytes(&op);
-                        if expected_bytes != formatted_bytes {
-                            report_failure(format!(
-                                "Opcode bytes do not match. Expecting: {}, got: {}",
-                                expected_bytes, formatted_bytes
-                            ));
-                        }
-
-                        let formatted_mnemonic = formatter.format_mnemonic(&op);
-                        if expected_mnemonic != formatted_mnemonic {
-                            report_failure(format!(
-                                "Wrong mnemonic. Expecting: {}, got: {}",
-                                expected_mnemonic, formatted_mnemonic
-                            ));
-                        }
-
-                        current_addr += op.len as u16;
-
-                    } else {
-                        report_failure(String::from("No output on last opcode byte"));
-                    }
-
+                    report_failure(String::from("No output on last opcode byte"));
                 }
 
             }

@@ -5,7 +5,7 @@ use librespectrum::devs::mem::Memory;
 
 use super::{SubWindow, draw_window, cursor_color};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Cursor {
     Address(usize),
     Memory(usize, usize),

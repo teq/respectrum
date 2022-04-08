@@ -1,13 +1,13 @@
-use std::{cell::Cell, rc::Rc, ops::Index};
+use std::{cell::Cell, rc::Rc, ops::{Index, Deref}};
 
 use crate::bus::{Clock, CpuBus, Ctls, NoReturnTask};
 use super::Memory;
 
 /// Standard dynamic 48k memory
 pub struct Dynamic48k {
-    pub bus: Rc<CpuBus>,
-    pub clock: Rc<Clock>,
-    pub memory: Vec<Cell<u8>>,
+    bus: Rc<CpuBus>,
+    clock: Rc<Clock>,
+    memory: Vec<Cell<u8>>,
 }
 
 impl Dynamic48k {
@@ -40,6 +40,13 @@ impl Index<u16> for Dynamic48k {
     type Output = Cell<u8>;
     fn index(&self, addr: u16) -> &Self::Output {
         &self.memory[addr as usize]
+    }
+}
+
+impl Deref for Dynamic48k {
+    type Target = Vec<Cell<u8>>;
+    fn deref(&self) -> &Self::Target {
+        &self.memory
     }
 }
 

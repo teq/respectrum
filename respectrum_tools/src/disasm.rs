@@ -2,36 +2,61 @@
 
 extern crate librespectrum;
 
-use librespectrum::tools;
+use clap::Parser;
 
 use std::{
+    fs,
+    vec::Vec,
     pin::Pin,
-    fs::File,
-    io::{Read, Seek, SeekFrom},
+    path::PathBuf,
     ops::{Generator, GeneratorState},
+    io::{self, BufReader, BufRead, Read}
 };
+
+use librespectrum::cpu::decoder::disassembler;
+
+/// Maximum bytes to process for each disassembled line
+const LINE_BYTES: usize = 4;
+
+/// Z80 disassembler
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+
+    /// Disassemble base address
+    #[clap(short, long, value_name = "ADDR", default_value_t = 0)]
+    base_address: u16,
+
+    /// Binary file to disassemble
+    #[clap(short, long, value_name = "FILE")]
+    input_file: Option<PathBuf>,
+
+}
 
 fn main() {
 
-    let address: u16 = 0x0000;
-    let offset: u16 = 0x0;
-    let mut limit = 100;
+    let args = Args::parse();
 
-    let mut file = File::open("roms/48.rom").unwrap();
-    let mut buffer: Vec<u8> = Vec::new();
-    file.seek(SeekFrom::Start(offset as u64)).unwrap();
-    file.read_to_end(&mut buffer).unwrap();
+    let reader: Box<dyn BufRead> = match args.input_file {
+        None => Box::new(BufReader::new(io::stdin())),
+        Some(filename) => Box::new(BufReader::new(fs::File::open(filename).unwrap()))
+    };
 
-    let mut disassembler = tools::disassembler(address + offset);
+    let mut bytes = reader.bytes();
+    let mut disasm = disassembler(args.base_address, LINE_BYTES);
 
-    for byte in buffer {
-        if let GeneratorState::Yielded(Some(op)) = Pin::new(&mut disassembler).resume(byte) {
-            println!("{}", op);
-            limit -= 1;
+    while let Some(Ok(byte)) = bytes.next() {
+
+        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+            println!(
+                "{:0>4X}: {:<bytes$} | {}",
+                line.address,
+                line.bytes.iter().map(|byte| format!("{:0>2X}", byte)).collect::<Vec<String>>().join(" "),
+                (if let Some(instr) = line.instruction {instr.format_mnemonic()} else {String::from("...")}),
+                bytes = LINE_BYTES * 3 - 1
+            );
         }
-        if limit <= 0 {
-            break;
-        }
+
     }
 
 }

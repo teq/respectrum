@@ -1,16 +1,17 @@
 use std::{
     rc::Rc,
+    pin::Pin,
     cell::Cell,
+    ops::{Generator, GeneratorState},
 };
 
 use crate::{
-    mkword,
-    spword,
-    yield_from,
+    mkword, spword, yield_from,
     bus::{NoReturnTask, Clock, CpuBus, Task, Ctls, Outs},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp},
-        InstructionDecoder, Flags
+        decoder::instruction_decoder,
+        Flags,
     },
     misc::Word,
 };
@@ -65,39 +66,39 @@ impl Cpu {
             // Instruction loop
             loop {
 
-                let mut decoder = InstructionDecoder::new();
+                let mut decoder = instruction_decoder();
+                let mut upnext = TokenType::Opcode;
 
                 // Instruction decode loop
-                let opcode = loop {
+                let instruction = loop {
 
                     let pc = self.next_pc(1);
 
                     // Read the next byte using appropriate M-cycle
-                    let byte: u8 = match decoder.upnext() {
+                    let byte: u8 = match upnext {
                         TokenType::Opcode => yield_from!(self.opcode_read(pc)),
                         TokenType::Displacement | TokenType::Data => yield_from!(self.memory_read(pc))
                     };
 
-                    // Decode byte
-                    let decoding = decoder.decode(byte);
-                    if !decoding {
-                        break decoder.expect_opcode(); // instruction decoded
+                    match Pin::new(&mut decoder).resume(byte) {
+                        GeneratorState::Yielded(result) => upnext = result.upnext,
+                        GeneratorState::Complete(instruction) => break instruction
                     }
 
                 };
 
-                match opcode {
+                match instruction.opcode {
 
                     // 8-bit Load
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(dst, decoder.expect_displacement());
+                        let addr = self.idx_addr(dst, instruction.expect_displacement());
                         yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(src, decoder.expect_displacement());
+                        let addr = self.idx_addr(src, instruction.expect_displacement());
                         self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
@@ -127,10 +128,10 @@ impl Cpu {
                     },
                     Token::LD_RG_N(Reg::AtHL) => {
                         let addr = self.rp(RegPair::HL).get();
-                        yield_from!(self.memory_write(addr, decoder.expect_byte_data()));
+                        yield_from!(self.memory_write(addr, instruction.expect_byte_data()));
                     },
                     Token::LD_RG_N(reg) => {
-                        self.rg(reg).set(decoder.expect_byte_data());
+                        self.rg(reg).set(instruction.expect_byte_data());
                     },
                     Token::LD_A_AtRP(rpair) => {
                         let addr = self.rp(rpair).get();
@@ -141,27 +142,27 @@ impl Cpu {
                         yield_from!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::LD_A_MM => {
-                        let addr = decoder.expect_word_data();
+                        let addr = instruction.expect_word_data();
                         self.rg(Reg::A).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_MM_A => {
-                        let addr = decoder.expect_word_data();
+                        let addr = instruction.expect_word_data();
                         yield_from!(self.memory_write(addr, self.rg(Reg::A).get()));
                     },
 
                     // 16-bit Load
 
                     Token::LD_RP_NN(rpair) => {
-                        self.rp(rpair).set(decoder.expect_word_data());
+                        self.rp(rpair).set(instruction.expect_word_data());
                     },
                     Token::LD_RP_MM(rpair) => {
-                        let addr = decoder.expect_word_data();
+                        let addr = instruction.expect_word_data();
                         let lo = yield_from!(self.memory_read(addr));
                         let hi = yield_from!(self.memory_read(addr + 1));
                         self.rp(rpair).set(mkword!(hi, lo));
                     },
                     Token::LD_MM_RP(rpair) => {
-                        let addr = decoder.expect_word_data();
+                        let addr = instruction.expect_word_data();
                         let (hi, lo) = spword!(self.rp(rpair).get());
                         yield_from!(self.memory_write(addr, lo));
                         yield_from!(self.memory_write(addr + 1, hi));
@@ -221,7 +222,7 @@ impl Cpu {
                         let rhs = if let Some(reg) = maybe_reg {
                             self.rg(reg).get()
                         } else {
-                            decoder.expect_byte_data()
+                            instruction.expect_byte_data()
                         };
                         let mut flags = self.get_flags() & Flags::C;
                         let result = match op {
@@ -270,7 +271,7 @@ impl Cpu {
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
                         let value = self.rg(reg).get();
                         let mut flags = self.get_flags() & Flags::C;
-                        let result = if let Token::INC_RG(_) = opcode {
+                        let result = if let Token::INC_RG(_) = instruction.opcode {
                             flags.set(Flags::P, (value as i8).overflowing_add(1 as i8).1);
                             flags.set(Flags::H, (value << 4).overflowing_add(1 << 4).1);
                             value.wrapping_add(1)
@@ -451,11 +452,11 @@ impl Cpu {
                     // IO group
 
                     Token::IN_A_N => {
-                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
+                        let addr = mkword!(self.rg(Reg::A).get(), instruction.expect_byte_data());
                         self.rg(Reg::A).set(yield_from!(self.io_read(addr)));
                     },
                     Token::OUT_N_A => {
-                        let addr = mkword!(self.rg(Reg::A).get(), decoder.expect_byte_data());
+                        let addr = mkword!(self.rg(Reg::A).get(), instruction.expect_byte_data());
                         yield_from!(self.io_write(addr, self.rg(Reg::A).get()));
                     },
                     Token::IN_RG_AtBC(reg) => {

@@ -63,7 +63,6 @@ impl SubWindow for CpuWindow {
             });
 
             ui.horizontal(|ui| {
-
                 let flags = cpu::Flags::from(self.cpu_state.af.bytes().lo.get());
                 flag_label(ui, "C", flags.contains(cpu::Flags::C));
                 flag_label(ui, "N", flags.contains(cpu::Flags::N));
@@ -73,7 +72,6 @@ impl SubWindow for CpuWindow {
                 flag_label(ui, "Y", flags.contains(cpu::Flags::Y));
                 flag_label(ui, "Z", flags.contains(cpu::Flags::Z));
                 flag_label(ui, "S", flags.contains(cpu::Flags::S));
-
             });
 
             ui.horizontal(|ui| {

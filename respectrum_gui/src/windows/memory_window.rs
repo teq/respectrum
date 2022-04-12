@@ -162,7 +162,7 @@ impl SubWindow for MemoryWindow {
 
                         let label = Label::new(
                             RichText::new(
-                                format!("{:02X}", self.memory[addr].get())
+                                format!("{:02X}", self.memory.read(addr))
                             ).background_color(
                                 if self.cursor == Cursor::Memory(col, row) {cursor_color(focused)} else {Color32::default()}
                             ).color(
@@ -186,7 +186,7 @@ impl SubWindow for MemoryWindow {
 
                             let addr = row_addr.overflowing_add(col as u16).0;
 
-                            let byte = self.memory[addr].get();
+                            let byte = self.memory.read(addr);
 
                             let is_ascii = byte.is_ascii_alphanumeric() || byte.is_ascii_graphic()
                                 || byte.is_ascii_punctuation() || byte == 0x20 /* space */;

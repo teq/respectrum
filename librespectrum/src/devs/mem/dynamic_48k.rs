@@ -1,4 +1,4 @@
-use std::{cell::Cell, rc::Rc, ops::{Index, Deref}};
+use std::{cell::Cell, rc::Rc};
 
 use crate::bus::{Clock, CpuBus, Ctls, NoReturnTask};
 use super::Memory;
@@ -30,24 +30,19 @@ impl Dynamic48k {
 }
 
 impl Memory for Dynamic48k {
-    /// Check if given address is writable (located in RAM)
+
     fn writable(&self, addr: u16) -> bool {
         addr & 0xc000 != 0 // First 16KB are not writable (ROM)
     }
-}
 
-impl Index<u16> for Dynamic48k {
-    type Output = Cell<u8>;
-    fn index(&self, addr: u16) -> &Self::Output {
-        &self.memory[addr as usize]
+    fn write(&self, addr: u16, byte: u8) {
+        self.memory[addr as usize].set(byte);
     }
-}
 
-impl Deref for Dynamic48k {
-    type Target = Vec<Cell<u8>>;
-    fn deref(&self) -> &Self::Target {
-        &self.memory
+    fn read(&self, addr: u16) -> u8 {
+        self.memory[addr as usize].get()
     }
+
 }
 
 impl Dynamic48k {
@@ -68,13 +63,13 @@ impl Dynamic48k {
 
                 // Perform read or write
                 if ctrl.contains(Ctls::RD) {
-                    let release = self.bus.data.drive_and_release(self[addr].get());
+                    let release = self.bus.data.drive_and_release(self.read(addr));
                     yield self.clock.rising(3);
                     release();
                 } else if ctrl.contains(Ctls::WR) {
                     let data = self.bus.data.sample().unwrap();
                     if self.writable(addr) {
-                        self[addr].set(data);
+                        self.write(addr, data);
                     }
                     yield self.clock.rising(2);
                 }

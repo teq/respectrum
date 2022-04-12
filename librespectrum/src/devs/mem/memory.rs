@@ -1,5 +1,13 @@
-use std::{cell::Cell, ops::{Index, Deref}};
 
-pub trait Memory: Index<u16, Output = Cell<u8>> + Deref<Target = Vec<Cell<u8>>> {
+pub trait Memory {
+
+    /// Check if given address is writable (located in RAM)
     fn writable(&self, addr: u16) -> bool;
+
+    /// Write byte to the memory
+    fn write(&self, addr: u16, byte: u8);
+
+    /// Read byte from the memory
+    fn read(&self, addr: u16) -> u8;
+
 }

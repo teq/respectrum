@@ -59,13 +59,15 @@ impl SubWindow for DisassmWindow {
             Grid::new("memory").min_col_width(0.0).show(ui, |ui| {
 
                 let mut disasm = disassembler(self.addr, LINE_BYTES);
-                let mut memory = self.memory.iter().cycle().skip(self.addr as usize);
+                let mut ptr = self.addr;
 
                 for row in 0..self.rows {
 
                     // Feed bytes until line is disassembled
                     let line = loop {
-                        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(memory.next().unwrap().get()) {
+                        let byte = self.memory.read(ptr);
+                        ptr = ptr.wrapping_add(1);
+                        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
                             break line;
                         }
                     };

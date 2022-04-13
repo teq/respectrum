@@ -30,14 +30,50 @@ impl DisassmWindow {
         Self { memory, addr: 0, rows: 16, cursor: 0 }
     }
 
+    fn prev_instr(&self) -> u16 {
+        let mut ptr = self.addr.wrapping_sub((LINE_BYTES * 2) as u16);
+        let mut disasm = disassembler(ptr, LINE_BYTES);
+        let mut prev = self.addr;
+        loop {
+            let byte = self.memory.read(ptr);
+            ptr = ptr.wrapping_add(1);
+            if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+                if (line.address.wrapping_sub(self.addr) as i16) >= 0 {
+                    return prev;
+                }
+                prev = line.address;
+            }
+        }
+    }
+
+    fn next_instr(&self) -> u16 {
+        let mut ptr = self.addr;
+        let mut disasm = disassembler(ptr, LINE_BYTES);
+        loop {
+            let byte = self.memory.read(ptr);
+            ptr = ptr.wrapping_add(1);
+            if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+                if (line.address.wrapping_sub(self.addr) as i16) > 0 {
+                    return line.address;
+                }
+            }
+        }
+    }
+
     fn handle_keyboard(&mut self, input: &InputState) {
 
         if input.key_pressed(Key::ArrowUp) {
-            self.cursor = self.cursor.saturating_sub(1);
+            self.cursor = if input.modifiers.alt {0} else {
+                if self.cursor == 0 { self.addr = self.prev_instr(); }
+                self.cursor.saturating_sub(1)
+            };
         }
 
         if input.key_pressed(Key::ArrowDown) {
-            self.cursor = min(self.rows - 1, self.cursor + 1)
+            self.cursor = if input.modifiers.alt {self.rows - 1} else {
+                if self.cursor == self.rows - 1 { self.addr = self.next_instr(); }
+                min(self.rows - 1, self.cursor + 1)
+            };
         }
 
     }

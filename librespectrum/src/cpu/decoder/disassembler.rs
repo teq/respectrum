@@ -28,12 +28,12 @@ pub fn disassembler(
             let bytes_len = bytes.len() as u16;
             if let GeneratorState::Complete(instruction) = Pin::new(&mut decoder).resume(byte) {
                 byte = yield Some(DisassembledLine { address, bytes, instruction: Some(instruction) });
-                address += bytes_len;
+                address = address.wrapping_add(bytes_len);
                 bytes = Vec::with_capacity(line_bytes);
                 decoder = instruction_decoder();
             } else if bytes.len() >= line_bytes {
                 byte = yield Some(DisassembledLine { address, bytes, instruction: None });
-                address += bytes_len;
+                address = address.wrapping_add(bytes_len);
                 bytes = Vec::with_capacity(line_bytes);
             } else {
                 byte = yield None;

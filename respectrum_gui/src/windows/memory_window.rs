@@ -44,7 +44,7 @@ impl MemoryWindow {
                     Cursor::Memory(col, row) => Cursor::Memory(col, row.saturating_sub(1)),
                     Cursor::Text(col, row) => Cursor::Text(col, row.saturating_sub(1))
                 }
-            }
+            };
         }
 
         if input.key_pressed(Key::ArrowDown) {
@@ -61,7 +61,7 @@ impl MemoryWindow {
                     Cursor::Memory(col, row) => Cursor::Memory(col, min(self.rows - 1, row + 1)),
                     Cursor::Text(col, row) => Cursor::Text(col, min(self.rows - 1, row + 1))
                 }
-            }
+            };
         }
 
         if input.key_pressed(Key::ArrowLeft) {
@@ -81,7 +81,7 @@ impl MemoryWindow {
                     Cursor::Text(col, row) => Cursor::Text(col - 1, row),
                     _ => self.cursor
                 }
-            }
+            };
         }
 
         if input.key_pressed(Key::ArrowRight) {
@@ -101,7 +101,7 @@ impl MemoryWindow {
                     Cursor::Text(col, row) if col < self.cols - 1 => Cursor::Text(col + 1, row),
                     _ => self.cursor
                 }
-            }
+            };
         }
 
         if input.key_pressed(Key::PageUp) {

@@ -65,9 +65,7 @@ fn main() {
 
     let bus: Rc<bus::CpuBus> = Default::default();
     let clock: Rc<bus::Clock> = Default::default();
-    let cpu_state: Rc<cpu::CpuState> = Default::default();
-
-    let cpu = Rc::new(cpu::Cpu::new(bus.clone(), clock.clone(), cpu_state.clone()));
+    let cpu = Rc::new(cpu::Cpu::new(bus.clone(), clock.clone()));
     let mem = Rc::new(devs::mem::Dynamic48k::new(bus.clone(), clock.clone()));
 
     let mut file = File::open("roms/48.rom").unwrap();
@@ -77,7 +75,7 @@ fn main() {
 
     let app = EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(cpu_state.clone()))),
+            (true, Box::new(CpuWindow::new(cpu.clone()))),
             (true, Box::new(DisassmWindow::new(mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
         ],

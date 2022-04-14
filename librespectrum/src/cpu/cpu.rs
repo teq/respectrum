@@ -16,9 +16,10 @@ use crate::{
     misc::Word,
 };
 
-/// Register file
+/// Z80 CPU
 #[derive(Default)]
-pub struct CpuState {
+pub struct Cpu {
+
     pub af: Word,
     pub bc: Word,
     pub de: Word,
@@ -35,13 +36,10 @@ pub struct CpuState {
     pub iff1: bool,
     pub iff2: bool,
     pub im: u8,
-}
 
-/// Z80 CPU
-pub struct Cpu {
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
-    state: Rc<CpuState>,
+
 }
 
 #[inline]
@@ -54,8 +52,8 @@ fn parity(value: u8) -> bool {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>, state: Rc<CpuState>) -> Self {
-        Self { bus, clock, state }
+    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+        Self { bus, clock, ..Default::default() }
     }
 
     /// Run CPU device task
@@ -118,7 +116,7 @@ impl Cpu {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
-                        flags.set(Flags::P, self.state.iff2);
+                        flags.set(Flags::P, self.iff2);
                         flags.set(Flags::Z, value == 0);
                         flags.set(Flags::S, (value as i8) < 0);
                         self.set_flags(flags);
@@ -499,20 +497,20 @@ impl Cpu {
     /// Get reference to register value
     pub fn rg(&self, reg: Reg) -> &Cell<u8> {
         match reg {
-            Reg::B   => &self.state.bc.bytes().hi,
-            Reg::C   => &self.state.bc.bytes().lo,
-            Reg::D   => &self.state.de.bytes().hi,
-            Reg::E   => &self.state.de.bytes().lo,
-            Reg::H   => &self.state.hl.bytes().hi,
-            Reg::L   => &self.state.hl.bytes().lo,
-            Reg::A   => &self.state.af.bytes().hi,
-            Reg::F   => &self.state.af.bytes().lo,
-            Reg::I   => &self.state.ir.bytes().hi,
-            Reg::R   => &self.state.ir.bytes().lo,
-            Reg::IXH => &self.state.ix.bytes().hi,
-            Reg::IXL => &self.state.ix.bytes().lo,
-            Reg::IYH => &self.state.iy.bytes().hi,
-            Reg::IYL => &self.state.iy.bytes().lo,
+            Reg::B   => &self.bc.bytes().hi,
+            Reg::C   => &self.bc.bytes().lo,
+            Reg::D   => &self.de.bytes().hi,
+            Reg::E   => &self.de.bytes().lo,
+            Reg::H   => &self.hl.bytes().hi,
+            Reg::L   => &self.hl.bytes().lo,
+            Reg::A   => &self.af.bytes().hi,
+            Reg::F   => &self.af.bytes().lo,
+            Reg::I   => &self.ir.bytes().hi,
+            Reg::R   => &self.ir.bytes().lo,
+            Reg::IXH => &self.ix.bytes().hi,
+            Reg::IXL => &self.ix.bytes().lo,
+            Reg::IYH => &self.iy.bytes().hi,
+            Reg::IYL => &self.iy.bytes().lo,
             _ => unreachable!()
         }
     }
@@ -520,15 +518,15 @@ impl Cpu {
     /// Get reference to regpair value
     pub fn rp(&self, rpair: RegPair) -> &Cell<u16> {
         match rpair {
-            RegPair::BC => &self.state.bc.word(),
-            RegPair::DE => &self.state.de.word(),
-            RegPair::HL => &self.state.hl.word(),
-            RegPair::AF => &self.state.af.word(),
-            RegPair::SP => &self.state.sp.word(),
-            RegPair::PC => &self.state.pc.word(),
-            RegPair::IR => &self.state.ir.word(),
-            RegPair::IX => &self.state.ix.word(),
-            RegPair::IY => &self.state.iy.word(),
+            RegPair::BC => &self.bc.word(),
+            RegPair::DE => &self.de.word(),
+            RegPair::HL => &self.hl.word(),
+            RegPair::AF => &self.af.word(),
+            RegPair::SP => &self.sp.word(),
+            RegPair::PC => &self.pc.word(),
+            RegPair::IR => &self.ir.word(),
+            RegPair::IX => &self.ix.word(),
+            RegPair::IY => &self.iy.word(),
             _ => unreachable!()
         }
     }
@@ -545,19 +543,19 @@ impl Cpu {
 
     /// Swap primary and alternative accumulator (AF)
     fn swap_acc(&self) {
-        self.state.af.word().swap(&self.state.alt_af.word());
+        self.af.word().swap(&self.alt_af.word());
     }
 
     /// Swap primary and alternative BC,DE and HL
     fn swap_regfile(&self) {
-        self.state.bc.word().swap(&self.state.alt_bc.word());
-        self.state.de.word().swap(&self.state.alt_de.word());
-        self.state.hl.word().swap(&self.state.alt_hl.word());
+        self.bc.word().swap(&self.alt_bc.word());
+        self.de.word().swap(&self.alt_de.word());
+        self.hl.word().swap(&self.alt_hl.word());
     }
 
     /// Swap HL and DE
     fn swap_hlde(&self) {
-        self.state.hl.word().swap(&self.state.de.word());
+        self.hl.word().swap(&self.de.word());
     }
 
     /// Calculate absolute address for IX+d or IY+d offsets

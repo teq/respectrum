@@ -23,7 +23,7 @@ pub struct MemoryWindow {
 impl MemoryWindow {
 
     pub fn new(memory: Rc<dyn Memory>) -> Self {
-        Self { memory, cols: 8, rows: 16, addr: 0, cursor: Cursor::Address(0) }
+        Self { memory, cols: 8, rows: 24, addr: 0, cursor: Cursor::Address(0) }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {

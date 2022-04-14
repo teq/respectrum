@@ -27,7 +27,7 @@ pub struct DisassmWindow {
 impl DisassmWindow {
 
     pub fn new(memory: Rc<dyn Memory>) -> Self {
-        Self { memory, addr: 0, rows: 16, cursor: 0 }
+        Self { memory, addr: 0, rows: 24, cursor: 0 }
     }
 
     fn prev_instr(&self) -> u16 {
@@ -96,6 +96,7 @@ impl SubWindow for DisassmWindow {
 
                 let mut disasm = disassembler(self.addr, LINE_BYTES);
                 let mut ptr = self.addr;
+                let pc = 0;//self.cpu.pc.word().get();
 
                 for row in 0..self.rows {
 
@@ -108,30 +109,39 @@ impl SubWindow for DisassmWindow {
                         }
                     };
 
-                    // Print address
-                    let label = Label::new(
-                        RichText::new(
-                            format!("{:0>4X}", line.address)
-                        ).background_color(
-                            if self.cursor == row {cursor_color(focused)} else {Color32::default()}
-                        ).color(Color32::BLACK)
-                    ).sense(Sense::click());
+                    let line_color = if line.address <= pc && pc < line.address + line.bytes.len() as u16 {
+                        Color32::BLUE
+                    } else {
+                        Color32::BLACK
+                    };
 
-                    if ui.add(label).clicked() {
+                    // Print address
+                    if ui.add(
+                        Label::new(
+                            RichText::new(format!("{:0>4X}", line.address))
+                                .background_color(if self.cursor == row {cursor_color(focused)} else {Color32::default()})
+                                .color(line_color)
+                        ).sense(Sense::click())
+                    ).clicked() {
                         self.cursor = row;
                     }
 
                     // Print bytes
                     ui.add(Separator::default().vertical());
-                    ui.label(format!("{:<bytes$}",
-                        line.bytes.iter().map(|byte| format!("{:0>2X}", byte)).collect::<Vec<String>>().join(" "),
-                        bytes = LINE_BYTES * 3 - 1
+                    ui.add(Label::new(
+                        RichText::new(format!(
+                            "{:<bytes$}",
+                            line.bytes.iter().map(|byte| format!("{:0>2X}", byte)).collect::<Vec<String>>().join(" "),
+                            bytes = LINE_BYTES * 3 - 1
+                        )).color(line_color)
                     ));
 
                     // Print mnemonic (if any)
                     ui.add(Separator::default().vertical());
                     if let Some(instr) = line.instruction {
-                        ui.label(format!("{:<16}", instr.format_mnemonic()));
+                        ui.add(Label::new(
+                            RichText::new(format!("{:<16}", instr.format_mnemonic())).color(line_color)
+                        ));
                     } else {
                         ui.label("...");
                     }

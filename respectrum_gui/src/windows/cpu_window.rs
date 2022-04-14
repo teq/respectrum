@@ -1,17 +1,17 @@
 use eframe::egui::*;
-use librespectrum::cpu;
+use librespectrum::cpu::{Cpu, Flags};
 use std::rc::Rc;
 
 use super::{SubWindow, draw_window};
 
 pub struct CpuWindow {
-    cpu_state: Rc<cpu::CpuState>,
+    cpu: Rc<Cpu>,
 }
 
 impl CpuWindow {
 
-    pub fn new(cpu_state: Rc<cpu::CpuState>) -> Self {
-        Self { cpu_state }
+    pub fn new(cpu: Rc<Cpu>) -> Self {
+        Self { cpu }
     }
 
 }
@@ -36,48 +36,48 @@ impl SubWindow for CpuWindow {
 
             Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 
-                reg_label(ui, "AF:", self.cpu_state.af.word().get());
-                reg_label(ui, "AF':", self.cpu_state.alt_af.word().get());
+                reg_label(ui, "AF:", self.cpu.af.word().get());
+                reg_label(ui, "AF':", self.cpu.alt_af.word().get());
                 ui.end_row();
 
-                reg_label(ui, "BC:", self.cpu_state.bc.word().get());
-                reg_label(ui, "BC':", self.cpu_state.alt_bc.word().get());
+                reg_label(ui, "BC:", self.cpu.bc.word().get());
+                reg_label(ui, "BC':", self.cpu.alt_bc.word().get());
                 ui.end_row();
 
-                reg_label(ui, "DE:", self.cpu_state.de.word().get());
-                reg_label(ui, "DE':", self.cpu_state.alt_de.word().get());
+                reg_label(ui, "DE:", self.cpu.de.word().get());
+                reg_label(ui, "DE':", self.cpu.alt_de.word().get());
                 ui.end_row();
 
-                reg_label(ui, "HL:", self.cpu_state.hl.word().get());
-                reg_label(ui, "HL':", self.cpu_state.alt_hl.word().get());
+                reg_label(ui, "HL:", self.cpu.hl.word().get());
+                reg_label(ui, "HL':", self.cpu.alt_hl.word().get());
                 ui.end_row();
 
-                reg_label(ui, "IX:", self.cpu_state.ix.word().get());
-                reg_label(ui, "IY:", self.cpu_state.iy.word().get());
+                reg_label(ui, "IX:", self.cpu.ix.word().get());
+                reg_label(ui, "IY:", self.cpu.iy.word().get());
                 ui.end_row();
 
-                reg_label(ui, "PC:", self.cpu_state.pc.word().get());
-                reg_label(ui, "SP:", self.cpu_state.sp.word().get());
+                reg_label(ui, "PC:", self.cpu.pc.word().get());
+                reg_label(ui, "SP:", self.cpu.sp.word().get());
                 ui.end_row();
 
             });
 
             ui.horizontal(|ui| {
-                let flags = cpu::Flags::from(self.cpu_state.af.bytes().lo.get());
-                flag_label(ui, "C", flags.contains(cpu::Flags::C));
-                flag_label(ui, "N", flags.contains(cpu::Flags::N));
-                flag_label(ui, "P", flags.contains(cpu::Flags::P));
-                flag_label(ui, "X", flags.contains(cpu::Flags::X));
-                flag_label(ui, "H", flags.contains(cpu::Flags::H));
-                flag_label(ui, "Y", flags.contains(cpu::Flags::Y));
-                flag_label(ui, "Z", flags.contains(cpu::Flags::Z));
-                flag_label(ui, "S", flags.contains(cpu::Flags::S));
+                let flags = Flags::from(self.cpu.af.bytes().lo.get());
+                flag_label(ui, "C", flags.contains(Flags::C));
+                flag_label(ui, "N", flags.contains(Flags::N));
+                flag_label(ui, "P", flags.contains(Flags::P));
+                flag_label(ui, "X", flags.contains(Flags::X));
+                flag_label(ui, "H", flags.contains(Flags::H));
+                flag_label(ui, "Y", flags.contains(Flags::Y));
+                flag_label(ui, "Z", flags.contains(Flags::Z));
+                flag_label(ui, "S", flags.contains(Flags::S));
             });
 
             ui.horizontal(|ui| {
-                ui.colored_label(Color32::WHITE, format!("IM{}", self.cpu_state.im));
-                flag_label(ui, "IFF1", self.cpu_state.iff1);
-                flag_label(ui, "IFF2", self.cpu_state.iff2);
+                ui.colored_label(Color32::WHITE, format!("IM{}", self.cpu.im));
+                flag_label(ui, "IFF1", self.cpu.iff1);
+                flag_label(ui, "IFF2", self.cpu.iff2);
             });
 
         })

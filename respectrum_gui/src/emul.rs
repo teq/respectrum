@@ -73,6 +73,8 @@ fn main() {
     file.read_to_end(&mut buffer).unwrap();
     mem.load(0, &buffer);
 
+    let mut scheduler = bus::Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()]);
+
     let app = EmulApp {
         windows: vec![
             (true, Box::new(CpuWindow::new(cpu.clone()))),
@@ -87,10 +89,7 @@ fn main() {
         min_window_size: Some(egui::vec2(800.0, 600.0)),
         ..Default::default()
     };
-    eframe::run_native(Box::new(app), native_options);
 
-    let mut scheduler = bus::Scheduler::new(clock);
-    scheduler.add(cpu.run());
-    scheduler.add(mem.run());
+    eframe::run_native(Box::new(app), native_options);
 
 }

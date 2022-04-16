@@ -14,63 +14,80 @@ pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;
 /// as an offset in half t-cycles to the current clock
 pub trait NoReturnTask = Task<!>;
 
+/// Task execution step
+struct Step {
+    pub htcycles: u64,
+    pub task_idx: usize,
+    pub next: Option<Box<Step>>,
+}
+
 /// Clock-synced tasks scheduler
 pub struct Scheduler<'a> {
 
     /// System clock
     clock: Rc<Clock>,
 
-    /// Managed tasks stored as tuples: (htcycles, task)
-    tasks: Vec<(u64, Box<dyn NoReturnTask + 'a>)>,
+    /// Managed tasks
+    tasks: Vec<Box<dyn NoReturnTask + 'a>>,
+
+    /// Nearest execution step
+    next: Option<Box<Step>>,
 
 }
 
 impl<'a> Scheduler<'a> {
 
     /// Create new scheduler instance
-    pub fn new(clock: Rc<Clock>) -> Self {
-        Self { clock, tasks: Default::default() }
-    }
-
-    /// Add new device
-    pub fn add(&mut self, task: Box<dyn NoReturnTask + 'a>) {
-        self.tasks.push((self.clock.get(), task));
+    pub fn new(clock: Rc<Clock>, tasks: Vec<Box<dyn NoReturnTask + 'a>>) -> Self {
+        fn init(htcycles: u64, i: usize) -> Option<Box<Step>> {
+            if i == 0 {None} else {
+                Some(Box::new(Step { htcycles, task_idx: i-1, next: init(htcycles, i-1) }))
+            }
+        }
+        let htcycles = clock.get();
+        let tasks_len = tasks.len();
+        Self { clock, tasks, next: init(htcycles, tasks_len) }
     }
 
     /// Advance N half t-cycles forward
-    pub fn advance(&mut self, n: u64) {
+    pub fn advance(&mut self, offset: u64) {
 
-        let target_htcycles = self.clock.get() + n;
+        // htcycles to advance to
+        let target_htcycles = self.clock.get() + offset;
 
-        while self.clock.get() < target_htcycles {
+        // Execute next step if it's before target_htcycles
+        if let Some(step) = self.next.take() && step.htcycles < target_htcycles {
 
-            // Get htcycles of the earliest task
-            match self.tasks.iter().map(|t| t.0).min() {
+            let Step { htcycles, task_idx, next } = *step;
+            let task = &mut self.tasks[task_idx];
+            self.next = next;
 
-                // We have such task(-s) and it's before target_htcycles
-                Some(task_htcycles) if task_htcycles < target_htcycles => {
-
-                    self.clock.set(task_htcycles);
-
-                    // Run each task and store htcycles for the next wake up
-                    for tuple in self.tasks.iter_mut().filter(|t| t.0 == task_htcycles) {
-                        let (ref mut next_wakeup, ref mut task) = tuple;
-                        if let GeneratorState::Yielded(offset) = Pin::new(task).resume(()) {
-                            *next_wakeup = task_htcycles + offset as u64;
-                        } else {
-                            panic!("Expecting task to never return (complete)");
-                        }
-                    }
-
-                },
-
-                // No such task(-s) => just advance to target_htcycles
-                _ => self.clock.set(target_htcycles)
-
+            // Advance to task's htcycles and continue task execution
+            self.clock.set(htcycles);
+            if let GeneratorState::Yielded(offset) = Pin::new(task).resume(()) {
+                // Insert new step at given offset
+                self.schedule(htcycles + offset as u64, task_idx);
+            } else {
+                panic!("Expecting task to never return (complete)");
             }
 
+            // Recursively advance to the next step until
+            // there are no more steps before target_htcycles
+            let next_offset = target_htcycles - htcycles;
+            if next_offset > 0 {
+                self.advance(next_offset);
+            }
+
+        } else {
+            // No => just advance to target_htcycles
+            self.clock.set(target_htcycles);
         }
 
+    }
+
+    /// Schedule given task at given htcycles
+    fn schedule(&mut self, htcycles: u64, task_idx: usize) {
+        todo!()
     }
 
 }
@@ -117,27 +134,25 @@ mod tests {
 
         let state = Rc::new(SharedState {
             clock: Rc::clone(&clock),
-            seq: RefCell::new(vec!())
+            seq: RefCell::new(vec![])
         });
 
         let foo = Foo { state: Rc::clone(&state) };
         let bar = Bar { state: Rc::clone(&state) };
 
-        let mut scheduler = Scheduler::new(clock);
-        scheduler.add(foo.run());
-        scheduler.add(bar.run());
+        let mut scheduler = Scheduler::new(clock, vec![foo.run(), bar.run()]);
 
         scheduler.advance(10);
         assert_eq!(
             *state.seq.borrow(),
-            vec!((1, false), (3, false), (5, false), (6, true), (7, false), (9, false))
+            vec![(1, false), (3, false), (5, false), (6, true), (7, false), (9, false)]
         );
 
         state.seq.borrow_mut().clear();
         scheduler.advance(10);
         assert_eq!(
             *state.seq.borrow(),
-            vec!((11, false), (12, true), (13, false), (15, false), (17, false), (18, true), (19, false))
+            vec![(11, false), (12, true), (13, false), (15, false), (17, false), (18, true), (19, false)]
         );
 
     }

@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     rc::Rc,
     pin::Pin,
     ops::{Generator, GeneratorState},
@@ -21,6 +22,30 @@ struct Step {
     pub next: Option<Box<Step>>,
 }
 
+impl fmt::Debug for Step {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.next {
+            &Some(ref step) => write!(f, "({:?},{:?}),{:?}", self.htcycles, self.task_idx, *step),
+            &None => write!(f, "({:?},{:?})", self.htcycles, self.task_idx),
+        }
+    }
+}
+
+impl Step {
+
+    /// Schedule given task at given htcycles
+    fn schedule(head: &mut Option<Box<Step>>, htcycles: u64, task_idx: usize) {
+        match head {
+            Some(step) if step.htcycles > htcycles => {
+                *head = Some(Box::new(Step { htcycles, task_idx, next: head.take() }));
+            },
+            Some(step) => Step::schedule(&mut step.next, htcycles, task_idx),
+            None => *head = Some(Box::new(Step { htcycles, task_idx, next: None }))
+        }
+    }
+
+}
+
 /// Clock-synced tasks scheduler
 pub struct Scheduler<'a> {
 
@@ -30,9 +55,15 @@ pub struct Scheduler<'a> {
     /// Managed tasks
     tasks: Vec<Box<dyn NoReturnTask + 'a>>,
 
-    /// Nearest execution step
-    next: Option<Box<Step>>,
+    /// Execution steps queue head
+    head: Option<Box<Step>>,
 
+}
+
+impl<'a> fmt::Debug for Scheduler<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "clock: {:?}, queue: {:?}", self.clock.get(), self.head)
+    }
 }
 
 impl<'a> Scheduler<'a> {
@@ -46,7 +77,7 @@ impl<'a> Scheduler<'a> {
         }
         let htcycles = clock.get();
         let tasks_len = tasks.len();
-        Self { clock, tasks, next: init(htcycles, tasks_len) }
+        Self { clock, tasks, head: init(htcycles, tasks_len) }
     }
 
     /// Advance N half t-cycles forward
@@ -55,39 +86,36 @@ impl<'a> Scheduler<'a> {
         // htcycles to advance to
         let target_htcycles = self.clock.get() + offset;
 
-        // Execute next step if it's before target_htcycles
-        if let Some(step) = self.next.take() && step.htcycles < target_htcycles {
+        // Check if next step is before target_htcycles
+        if let Some(step) = &self.head && step.htcycles < target_htcycles {
 
-            let Step { htcycles, task_idx, next } = *step;
+            // Consume the step and set head to the next one
+            let Step { htcycles: task_htcycles, task_idx, next } = *self.head.take().unwrap();
             let task = &mut self.tasks[task_idx];
-            self.next = next;
+            self.head = next;
 
             // Advance to task's htcycles and continue task execution
-            self.clock.set(htcycles);
+            self.clock.set(task_htcycles);
             if let GeneratorState::Yielded(offset) = Pin::new(task).resume(()) {
-                // Insert new step at given offset
-                self.schedule(htcycles + offset as u64, task_idx);
+                // Re-schedule current task with returned htcycles offset
+                Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
             } else {
                 panic!("Expecting task to never return (complete)");
             }
 
-            // Recursively advance to the next step until
-            // there are no more steps before target_htcycles
-            let next_offset = target_htcycles - htcycles;
-            if next_offset > 0 {
-                self.advance(next_offset);
+            // Recursively advance to the next step
+            let htcycles_left = target_htcycles - task_htcycles;
+            if htcycles_left > 0 {
+                self.advance(htcycles_left);
             }
 
         } else {
-            // No => just advance to target_htcycles
+
+            // Just advance to target_htcycles
             self.clock.set(target_htcycles);
+
         }
 
-    }
-
-    /// Schedule given task at given htcycles
-    fn schedule(&mut self, htcycles: u64, task_idx: usize) {
-        todo!()
     }
 
 }

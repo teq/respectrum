@@ -2,7 +2,7 @@
 
 extern crate librespectrum;
 
-use librespectrum::{bus, cpu, devs};
+use librespectrum::{bus, cpu, devs::{mem, Device}};
 use eframe::{egui, epi};
 use std::{
     rc::Rc,
@@ -10,17 +10,18 @@ use std::{
     fs::File,
     io::Read,
     ops::Deref,
+    cell::RefCell,
 };
 
 mod windows;
 use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow};
 
-struct EmulApp {
-    windows: Vec<(bool, Box<dyn SubWindow>)>,
+struct EmulApp<'a> {
+    windows: Vec<(bool, Box<dyn SubWindow + 'a>)>,
     focus: usize,
 }
 
-impl epi::App for EmulApp {
+impl epi::App for EmulApp<'_> {
 
     fn name(&self) -> &str { "reSpectrum - ZX Spectrum emulator" }
 
@@ -66,23 +67,25 @@ fn main() {
     let bus: Rc<bus::CpuBus> = Default::default();
     let clock: Rc<bus::Clock> = Default::default();
     let cpu = Rc::new(cpu::Cpu::new(bus.clone(), clock.clone()));
-    let mem = Rc::new(devs::mem::Dynamic48k::new(bus.clone(), clock.clone()));
+    let mem = Rc::new(mem::Dynamic48k::new(bus.clone(), clock.clone()));
 
     let mut file = File::open("roms/48.rom").unwrap();
     let mut buffer: Vec<u8> = Vec::new();
     file.read_to_end(&mut buffer).unwrap();
     mem.load(0, &buffer);
 
-    let mut scheduler = bus::Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()]);
+    let scheduler =  Rc::new(RefCell::new(
+        bus::Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()])
+    ));
 
-    let app = EmulApp {
+    let app = Box::new(EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(cpu.clone()))),
+            (true, Box::new(CpuWindow::new(cpu.clone(), scheduler.clone()))),
             (true, Box::new(DisassmWindow::new(mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
         ],
         focus: 0,
-    };
+    });
 
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1024.0, 768.0)),
@@ -90,6 +93,14 @@ fn main() {
         ..Default::default()
     };
 
-    eframe::run_native(Box::new(app), native_options);
+    run_native(app, native_options);
 
+}
+
+#[allow(unsafe_code)]
+fn run_native<'a>(app: Box<dyn epi::App + 'a>, native_options: epi::NativeOptions) -> ! {
+    let static_app = unsafe {
+        std::mem::transmute::<Box<dyn epi::App + 'a>, Box<dyn epi::App + 'static>>(app)
+    };
+    eframe::run_native(static_app, native_options);
 }

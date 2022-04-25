@@ -1,22 +1,32 @@
 use eframe::egui::*;
-use librespectrum::cpu::{Cpu, Flags};
-use std::rc::Rc;
+use librespectrum::{cpu::{Cpu, Flags}, bus::Scheduler};
+use std::{rc::Rc, cell::RefCell};
 
 use super::{SubWindow, draw_window};
 
-pub struct CpuWindow {
+pub struct CpuWindow<'a> {
     cpu: Rc<Cpu>,
+    scheduler: Rc<RefCell<Scheduler<'a>>>,
 }
 
-impl CpuWindow {
+impl<'a> CpuWindow<'a> {
 
-    pub fn new(cpu: Rc<Cpu>) -> Self {
-        Self { cpu }
+    pub fn new(cpu: Rc<Cpu>, scheduler: Rc<RefCell<Scheduler<'a>>>) -> Self {
+        CpuWindow { cpu, scheduler }
     }
 
+    fn handle_keyboard(&mut self, input: &InputState) {
+
+        if input.key_pressed(Key::Enter) {
+            self.scheduler.borrow_mut().advance(1);
+        }
+
+    }
+
+
 }
 
-impl SubWindow for CpuWindow {
+impl SubWindow for CpuWindow<'_> {
 
     fn name(&self) -> String { String::from("CPU") }
 
@@ -33,6 +43,8 @@ impl SubWindow for CpuWindow {
         };
 
         draw_window(self.name(), focused, ctx, |ui| {
+
+            self.handle_keyboard(&ui.input());
 
             Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 

@@ -1,6 +1,9 @@
 use std::{cell::Cell, rc::Rc};
 
-use crate::bus::{Clock, CpuBus, Ctls, NoReturnTask};
+use crate::{
+    bus::{Clock, CpuBus, Ctls, NoReturnTask},
+    devs::Device, misc::Identifiable,
+};
 use super::Memory;
 
 /// Standard dynamic 48k memory
@@ -45,9 +48,17 @@ impl Memory for Dynamic48k {
 
 }
 
-impl Dynamic48k {
+impl Identifiable for Dynamic48k {
 
-    pub fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
+    fn id(&self) -> &'static str {
+        "48K_MEM"
+    }
+
+}
+
+impl Device for Dynamic48k {
+
+    fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
         Box::new(move || {
 
@@ -63,7 +74,7 @@ impl Dynamic48k {
 
                 // Perform read or write
                 if ctrl.contains(Ctls::RD) {
-                    let release = self.bus.data.drive_and_release(self.read(addr));
+                    let release = self.bus.data.drive_and_release(self, self.read(addr));
                     yield self.clock.rising(3);
                     release();
                 } else if ctrl.contains(Ctls::WR) {

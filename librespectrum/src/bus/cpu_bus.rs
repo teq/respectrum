@@ -23,7 +23,6 @@ bitflags! {
 }
 
 /// Z80 CPU bus
-#[derive(Default)]
 pub struct CpuBus {
     /// Address bus (tri-state outputs)
     pub addr: BusLine<u16>,
@@ -43,4 +42,20 @@ pub struct CpuBus {
     pub reset: BusLine<bool>,
     /// BUSRQ input
     pub busrq: BusLine<bool>,
+}
+
+impl Default for CpuBus {
+    fn default() -> Self {
+        Self {
+            addr: BusLine::<u16>::new("ADDR"),
+            data: BusLine::<u8>::new("DATA"),
+            ctrl: BusLine::<Ctls>::new("CTRL"),
+            outs: BusLine::<Outs>::new("OUTS"),
+            wait: BusLine::<bool>::new("WAIT"),
+            int: BusLine::<bool>::new("INT"),
+            nmi: BusLine::<bool>::new("NMI"),
+            reset: BusLine::<bool>::new("RESET"),
+            busrq: BusLine::<bool>::new("BUSRQ"),
+        }
+    }
 }

@@ -32,7 +32,6 @@ impl fmt::Debug for Step {
 }
 
 impl Step {
-
     /// Schedule given task at given htcycles
     fn schedule(head: &mut Option<Box<Step>>, htcycles: u64, task_idx: usize) {
         match head {
@@ -43,7 +42,6 @@ impl Step {
             None => *head = Some(Box::new(Step { htcycles, task_idx, next: None }))
         }
     }
-
 }
 
 /// Clock-synced tasks scheduler
@@ -60,7 +58,7 @@ pub struct Scheduler<'a> {
 
 }
 
-impl<'a> fmt::Debug for Scheduler<'a> {
+impl fmt::Debug for Scheduler<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "clock: {:?}, queue: {:?}", self.clock.get(), self.head)
     }

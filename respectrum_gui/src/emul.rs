@@ -2,7 +2,11 @@
 
 extern crate librespectrum;
 
-use librespectrum::{bus, cpu, devs::{mem, Device}};
+use librespectrum::{
+    bus::{CpuBus, Clock, Scheduler},
+    devs::{mem::Dynamic48k, Device, Cpu}
+};
+
 use eframe::{egui, epi};
 use std::{
     rc::Rc,
@@ -64,10 +68,10 @@ impl epi::App for EmulApp<'_> {
 
 fn main() {
 
-    let bus: Rc<bus::CpuBus> = Default::default();
-    let clock: Rc<bus::Clock> = Default::default();
-    let cpu = Rc::new(cpu::Cpu::new(bus.clone(), clock.clone()));
-    let mem = Rc::new(mem::Dynamic48k::new(bus.clone(), clock.clone()));
+    let bus: Rc<CpuBus> = Default::default();
+    let clock: Rc<Clock> = Default::default();
+    let cpu = Rc::new(Cpu::new(bus.clone(), clock.clone()));
+    let mem = Rc::new(Dynamic48k::new(bus.clone(), clock.clone()));
 
     let mut file = File::open("roms/48.rom").unwrap();
     let mut buffer: Vec<u8> = Vec::new();
@@ -75,7 +79,7 @@ fn main() {
     mem.load(0, &buffer);
 
     let scheduler =  Rc::new(RefCell::new(
-        bus::Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()])
+        Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()])
     ));
 
     let app = Box::new(EmulApp {

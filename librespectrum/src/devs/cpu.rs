@@ -13,9 +13,10 @@ use crate::{
         decoder::instruction_decoder,
         Flags,
     },
-    devs::Device,
     misc::{Word, Identifiable},
 };
+
+use super::Device;
 
 /// Z80 CPU
 #[derive(Default)]

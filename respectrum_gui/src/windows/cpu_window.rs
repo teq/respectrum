@@ -1,5 +1,5 @@
 use eframe::egui::*;
-use librespectrum::{cpu::{Cpu, Flags}, bus::Scheduler};
+use librespectrum::{cpu::Flags, bus::Scheduler, devs::Cpu};
 use std::{rc::Rc, cell::RefCell};
 
 use super::{SubWindow, draw_window};

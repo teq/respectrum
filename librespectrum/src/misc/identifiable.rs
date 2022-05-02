@@ -1,4 +1,7 @@
-
+/// Represents identifiable object
 pub trait Identifiable {
-    fn id(&self) -> &'static str;
+
+    /// Get object ID
+    fn id(&self) -> u32;
+
 }

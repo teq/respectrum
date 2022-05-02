@@ -39,7 +39,9 @@ impl Memory for Dynamic48k {
     }
 
     fn write(&self, addr: u16, byte: u8) {
-        self.memory[addr as usize].set(byte);
+        if self.writable(addr) {
+            self.memory[addr as usize].set(byte);
+        }
     }
 
     fn read(&self, addr: u16) -> u8 {
@@ -50,9 +52,7 @@ impl Memory for Dynamic48k {
 
 impl Identifiable for Dynamic48k {
 
-    fn id(&self) -> &'static str {
-        "48K_MEM"
-    }
+    fn id(&self) -> u32 { 2 }
 
 }
 
@@ -65,23 +65,21 @@ impl Device for Dynamic48k {
             loop {
 
                 // Wait for MREQ
-                while !self.bus.ctrl.sample().unwrap_or(Ctls::NONE).contains(Ctls::MREQ) {
+                while !self.bus.ctrl.probe().unwrap_or(Ctls::NONE).contains(Ctls::MREQ) {
                     yield self.clock.rising(1);
                 }
 
-                let addr = self.bus.addr.sample().unwrap();
-                let ctrl = self.bus.ctrl.sample().unwrap();
+                let addr = self.bus.addr.expect();
+                let ctrl = self.bus.ctrl.expect();
 
                 // Perform read or write
                 if ctrl.contains(Ctls::RD) {
-                    let release = self.bus.data.drive_and_release(self, self.read(addr));
+                    self.bus.data.drive(self, self.read(addr));
                     yield self.clock.rising(3);
-                    release();
+                    self.bus.data.release(self);
                 } else if ctrl.contains(Ctls::WR) {
-                    let data = self.bus.data.sample().unwrap();
-                    if self.writable(addr) {
-                        self.write(addr, data);
-                    }
+                    let byte = self.bus.data.expect();
+                    self.write(addr, byte);
                     yield self.clock.rising(2);
                 }
 

@@ -53,9 +53,7 @@ fn parity(value: u8) -> bool {
 
 impl Identifiable for Cpu {
 
-    fn id(&self) -> &'static str {
-        "Z80"
-    }
+    fn id(&self) -> u32 { 1 }
 
 }
 
@@ -601,11 +599,11 @@ impl Cpu {
             yield self.clock.falling(1); // *** T1 falling ***
             self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::RD);
             yield self.clock.falling(1); // *** T2 falling ***
-            while self.bus.wait.sample().unwrap_or(false) {
+            while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.rising(1); // *** T3 rising ***
-            let byte = self.bus.data.sample().unwrap();
+            let byte = self.bus.data.expect();
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
             self.bus.ctrl.drive(self, Ctls::NONE); // clear MREQ & RD
             self.bus.outs.drive(self, Outs::RFSH);
@@ -630,11 +628,11 @@ impl Cpu {
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::RD);
             yield self.clock.falling(1); // T2 falling
-            while self.bus.wait.sample().unwrap_or(false) {
+            while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
-            let byte = self.bus.data.sample().unwrap();
+            let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctls::NONE);
             return byte;
         }
@@ -648,16 +646,16 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctls::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
-            let release_data = self.bus.data.drive_and_release(self, val);
+            self.bus.data.drive(self, val);
             self.bus.ctrl.drive(self, Ctls::MREQ);
             yield self.clock.falling(1); // T2 falling
             self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::WR);
-            while self.bus.wait.sample().unwrap_or(false) {
+            while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctls::NONE);
-            release_data();
+            self.bus.data.release(self);
         }
     }
 
@@ -696,11 +694,11 @@ impl Cpu {
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctls::IORQ | Ctls::RD);
             yield self.clock.falling(2); // TW falling
-            while self.bus.wait.sample().unwrap_or(false) {
+            while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
-            let byte = self.bus.data.sample().expect("Expecting data on a bus");
+            let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctls::NONE);
             return byte;
         }
@@ -714,16 +712,16 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctls::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
-            let release_data = self.bus.data.drive_and_release(self, val);
+            self.bus.data.drive(self, val);
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctls::IORQ | Ctls::WR);
             yield self.clock.falling(2); // TW falling
-            while self.bus.wait.sample().unwrap_or(false) {
+            while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctls::NONE);
-            release_data();
+            self.bus.data.release(self);
         }
     }
 

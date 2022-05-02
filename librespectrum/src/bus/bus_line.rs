@@ -8,8 +8,8 @@ pub struct BusLine<T> {
     /// Line name
     name: &'static str,
 
-    /// Line state and its current owner
-    state: Cell<Option<(T, &'static str)>>,
+    /// Line owner and state
+    state: Cell<Option<(u32, T)>>,
 
 }
 
@@ -17,7 +17,7 @@ impl<T: Copy> BusLine<T> {
 
     /// Create new bus line
     pub fn new(name: &'static str) -> Self {
-        Self { name, state: Default::default() }
+        Self { name, state: Cell::new(None) }
     }
 
     /// Bus line name
@@ -25,29 +25,37 @@ impl<T: Copy> BusLine<T> {
         self.name
     }
 
-    /// Sample signal line
-    pub fn sample(&self) -> Option<T> {
+    /// Get line owner (if any)
+    pub fn owner(&self) -> Option<u32> {
+        self.state.get().and_then(|(owner, _)| Some(owner))
+    }
+
+    /// Probe signal line
+    pub fn probe(&self) -> Option<T> {
+        self.state.get().and_then(|(_, value)| Some(value))
+    }
+
+    /// Expect signal on the line
+    pub fn expect(&self) -> T {
+        self.probe().unwrap()
+    }
+
+    /// Drive signal line
+    pub fn drive<U: Identifiable>(&self, device: &U, value: T) {
         match self.state.get() {
-            Some((val, _))  => Some(val),
-            None => None
+            None => self.state.set(Some((device.id(), value))),
+            Some((owner, _)) if owner == device.id() => self.state.set(Some((owner, value))),
+            Some((owner, _)) => panic!("Device {} conflicts with {} on a bus line {}", device.id(), owner, self.name)
         }
     }
 
-    /// Drive signal line expecting it is not taken (driven) by others or panic otherwise.
-    pub fn drive(&self, device: &dyn Identifiable, value: T) {
+    /// Release signal line
+    pub fn release<U: Identifiable>(&self, device: &U) {
         match self.state.get() {
-            Some((_, taken_by)) => panic!(
-                "Device {} tries to drive {} while it's taken by {}",
-                device.id(), self.name, taken_by
-            ),
-            None => self.state.set(Some((value, device.id()))),
+            Some((owner, _)) if owner == device.id() => self.state.set(None),
+            None | Some((_, _)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
         }
-    }
 
-    /// Drive and release later using returned closure
-    pub fn drive_and_release<'a>(&'a self, device: &dyn Identifiable, value: T) -> impl FnOnce() -> () + 'a {
-        self.drive(device, value);
-        move || self.state.set(None)
     }
 
 }
@@ -60,54 +68,36 @@ mod tests {
     fn mkline() -> BusLine::<bool> { BusLine::<bool>::new("Test line") }
 
     struct TestDevice {
-        pub name: &'static str
+        id: u32
     }
 
     impl Identifiable for TestDevice {
-        fn id(&self) -> &'static str {
-            self.name
-        }
+        fn id(&self) -> u32 { self.id }
     }
 
-    static dev: TestDevice = TestDevice { name: "Test device" };
+    static DEV1: TestDevice = TestDevice { id: 1 };
+    static DEV2: TestDevice = TestDevice { id: 2 };
 
     #[test]
-    fn sample_returns_nothing_if_line_is_not_driven() {
+    fn line_drive_and_probe() {
         let line = mkline();
-        assert_eq!(line.sample(), None);
-    }
-
-    #[test]
-    fn sample_returns_nothing_if_line_is_driven_and_then_released() {
-        let line = mkline();
-        let release = line.drive_and_release(&dev, true);
-        release();
-        assert_eq!(line.sample(), None);
-    }
-
-    #[test]
-    fn sample_returns_line_state_if_line_is_driven() {
-        let line = mkline();
-        line.drive(&dev, true);
-        assert_eq!(line.sample(), Some(true));
+        assert_eq!(line.probe(), None);
+        line.drive(&DEV1, false);
+        assert_eq!(line.probe(), Some(false));
+        line.drive(&DEV1, true);
+        assert_eq!(line.probe(), Some(true));
+        line.release(&DEV1);
+        assert_eq!(line.probe(), None);
+        line.drive(&DEV2, true);
+        assert_eq!(line.probe(), Some(true));
     }
 
     #[test]
-    fn drive_sets_a_new_line_state_if_line_already_released() {
+    #[should_panic(expected="conflict")]
+    fn only_one_device_can_drive_the_line() {
         let line = mkline();
-        let release = line.drive_and_release(&dev, true);
-        assert_eq!(line.sample(), Some(true));
-        release();
-        line.drive(&dev, false);
-        assert_eq!(line.sample(), Some(false));
-    }
-
-    #[test]
-    #[should_panic]
-    fn drive_panics_if_line_is_already_taken() {
-        let line = mkline();
-        line.drive(&dev, true);
-        line.drive(&dev, false);
+        line.drive(&DEV1, false);
+        line.drive(&DEV2, true);
     }
 
 }

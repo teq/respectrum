@@ -3,5 +3,5 @@ pub use identifiable::Identifiable;
 
 pub mod macros;
 
-mod word;
-pub use word::*;
+mod u16_cell;
+pub use u16_cell::*;

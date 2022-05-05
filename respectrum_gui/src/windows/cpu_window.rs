@@ -48,28 +48,28 @@ impl SubWindow for CpuWindow<'_> {
 
             Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 
-                reg_label(ui, "AF:", self.cpu.af.word().get());
-                reg_label(ui, "AF':", self.cpu.alt_af.word().get());
+                reg_label(ui, "AF:", self.cpu.af.value().get());
+                reg_label(ui, "AF':", self.cpu.alt_af.value().get());
                 ui.end_row();
 
-                reg_label(ui, "BC:", self.cpu.bc.word().get());
-                reg_label(ui, "BC':", self.cpu.alt_bc.word().get());
+                reg_label(ui, "BC:", self.cpu.bc.value().get());
+                reg_label(ui, "BC':", self.cpu.alt_bc.value().get());
                 ui.end_row();
 
-                reg_label(ui, "DE:", self.cpu.de.word().get());
-                reg_label(ui, "DE':", self.cpu.alt_de.word().get());
+                reg_label(ui, "DE:", self.cpu.de.value().get());
+                reg_label(ui, "DE':", self.cpu.alt_de.value().get());
                 ui.end_row();
 
-                reg_label(ui, "HL:", self.cpu.hl.word().get());
-                reg_label(ui, "HL':", self.cpu.alt_hl.word().get());
+                reg_label(ui, "HL:", self.cpu.hl.value().get());
+                reg_label(ui, "HL':", self.cpu.alt_hl.value().get());
                 ui.end_row();
 
-                reg_label(ui, "IX:", self.cpu.ix.word().get());
-                reg_label(ui, "IY:", self.cpu.iy.word().get());
+                reg_label(ui, "IX:", self.cpu.ix.value().get());
+                reg_label(ui, "IY:", self.cpu.iy.value().get());
                 ui.end_row();
 
-                reg_label(ui, "PC:", self.cpu.pc.word().get());
-                reg_label(ui, "SP:", self.cpu.sp.word().get());
+                reg_label(ui, "PC:", self.cpu.pc.value().get());
+                reg_label(ui, "SP:", self.cpu.sp.value().get());
                 ui.end_row();
 
             });

@@ -13,7 +13,7 @@ use crate::{
         decoder::instruction_decoder,
         Flags,
     },
-    misc::{Word, Identifiable},
+    misc::{U16Cell, Identifiable},
 };
 
 use super::Device;
@@ -22,19 +22,19 @@ use super::Device;
 #[derive(Default)]
 pub struct Cpu {
 
-    pub af: Word,
-    pub bc: Word,
-    pub de: Word,
-    pub hl: Word,
-    pub alt_af: Word,
-    pub alt_bc: Word,
-    pub alt_de: Word,
-    pub alt_hl: Word,
-    pub ix: Word,
-    pub iy: Word,
-    pub sp: Word,
-    pub pc: Word,
-    pub ir: Word,
+    pub af: U16Cell,
+    pub bc: U16Cell,
+    pub de: U16Cell,
+    pub hl: U16Cell,
+    pub alt_af: U16Cell,
+    pub alt_bc: U16Cell,
+    pub alt_de: U16Cell,
+    pub alt_hl: U16Cell,
+    pub ix: U16Cell,
+    pub iy: U16Cell,
+    pub sp: U16Cell,
+    pub pc: U16Cell,
+    pub ir: U16Cell,
     pub iff1: bool,
     pub iff2: bool,
     pub im: u8,
@@ -530,15 +530,15 @@ impl Cpu {
     /// Get reference to regpair value
     pub fn rp(&self, rpair: RegPair) -> &Cell<u16> {
         match rpair {
-            RegPair::BC => &self.bc.word(),
-            RegPair::DE => &self.de.word(),
-            RegPair::HL => &self.hl.word(),
-            RegPair::AF => &self.af.word(),
-            RegPair::SP => &self.sp.word(),
-            RegPair::PC => &self.pc.word(),
-            RegPair::IR => &self.ir.word(),
-            RegPair::IX => &self.ix.word(),
-            RegPair::IY => &self.iy.word(),
+            RegPair::BC => &self.bc.value(),
+            RegPair::DE => &self.de.value(),
+            RegPair::HL => &self.hl.value(),
+            RegPair::AF => &self.af.value(),
+            RegPair::SP => &self.sp.value(),
+            RegPair::PC => &self.pc.value(),
+            RegPair::IR => &self.ir.value(),
+            RegPair::IX => &self.ix.value(),
+            RegPair::IY => &self.iy.value(),
             _ => unreachable!()
         }
     }
@@ -555,19 +555,19 @@ impl Cpu {
 
     /// Swap primary and alternative accumulator (AF)
     fn swap_acc(&self) {
-        self.af.word().swap(&self.alt_af.word());
+        self.af.value().swap(&self.alt_af.value());
     }
 
     /// Swap primary and alternative BC,DE and HL
     fn swap_regfile(&self) {
-        self.bc.word().swap(&self.alt_bc.word());
-        self.de.word().swap(&self.alt_de.word());
-        self.hl.word().swap(&self.alt_hl.word());
+        self.bc.value().swap(&self.alt_bc.value());
+        self.de.value().swap(&self.alt_de.value());
+        self.hl.value().swap(&self.alt_hl.value());
     }
 
     /// Swap HL and DE
     fn swap_hlde(&self) {
-        self.hl.word().swap(&self.de.word());
+        self.hl.value().swap(&self.de.value());
     }
 
     /// Calculate absolute address for IX+d or IY+d offsets

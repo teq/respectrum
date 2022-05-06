@@ -1,4 +1,4 @@
-use eframe::egui::*;
+use egui::*;
 use librespectrum::{cpu::Flags, bus::Scheduler, devs::Cpu};
 use std::{rc::Rc, cell::RefCell};
 
@@ -22,7 +22,6 @@ impl<'a> CpuWindow<'a> {
         }
 
     }
-
 
 }
 

@@ -1,5 +1,5 @@
 use std::{cmp::min, rc::Rc};
-use eframe::egui::*;
+use egui::*;
 
 use librespectrum::devs::mem::Memory;
 

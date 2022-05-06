@@ -5,10 +5,10 @@ use std::{
     ops::{Generator, GeneratorState},
 };
 
-use eframe::{egui::*};
+use egui::*;
 
 use librespectrum::{
-    devs::mem::Memory,
+    devs::{mem::Memory, Cpu},
     cpu::decoder::disassembler
 };
 
@@ -18,6 +18,7 @@ use super::{SubWindow, draw_window, cursor_color};
 const LINE_BYTES: usize = 4;
 
 pub struct DisassmWindow {
+    cpu: Rc<Cpu>,
     memory: Rc<dyn Memory>,
     addr: u16,
     rows: usize,
@@ -26,8 +27,8 @@ pub struct DisassmWindow {
 
 impl DisassmWindow {
 
-    pub fn new(memory: Rc<dyn Memory>) -> Self {
-        Self { memory, addr: 0, rows: 24, cursor: 0 }
+    pub fn new(cpu: Rc<Cpu>, memory: Rc<dyn Memory>) -> Self {
+        Self { cpu, memory, addr: 0, rows: 24, cursor: 0 }
     }
 
     fn prev_instr(&self) -> u16 {
@@ -96,7 +97,7 @@ impl SubWindow for DisassmWindow {
 
                 let mut disasm = disassembler(self.addr, LINE_BYTES);
                 let mut ptr = self.addr;
-                let pc = 0;//self.cpu.pc.word().get();
+                let pc = self.cpu.pc.value().get();
 
                 for row in 0..self.rows {
 

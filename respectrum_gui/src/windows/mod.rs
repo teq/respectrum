@@ -1,6 +1,8 @@
 use std::hash::Hash;
 use eframe::egui::*;
 
+mod bus_window;
+pub use bus_window::BusWindow;
 mod cpu_window;
 pub use cpu_window::CpuWindow;
 mod disassm_window;
@@ -29,7 +31,7 @@ pub fn draw_window(
     Area::new(&name).show(ctx, |ui| {
 
         Frame::window(&ctx.style())
-            .margin(style::Margin::same(0.0))
+            .inner_margin(style::Margin::same(0.0))
             .fill(if focused {Color32::LIGHT_BLUE} else {Color32::LIGHT_GRAY})
             .show(ui, |ui|
         {

@@ -7,7 +7,6 @@ use librespectrum::{
     devs::{mem::Dynamic48k, Device, Cpu}
 };
 
-use eframe::{egui, epi};
 use std::{
     rc::Rc,
     vec::Vec,
@@ -18,18 +17,16 @@ use std::{
 };
 
 mod windows;
-use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow};
+use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow, BusWindow};
 
 struct EmulApp<'a> {
     windows: Vec<(bool, Box<dyn SubWindow + 'a>)>,
     focus: usize,
 }
 
-impl epi::App for EmulApp<'_> {
+impl eframe::App for EmulApp<'_> {
 
-    fn name(&self) -> &str { "reSpectrum - ZX Spectrum emulator" }
-
-    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
 
         let mut style = ctx.style().deref().clone();
         style.override_text_style = Some(egui::TextStyle::Monospace);
@@ -85,11 +82,19 @@ fn main() {
     let app = Box::new(EmulApp {
         windows: vec![
             (true, Box::new(CpuWindow::new(cpu.clone(), scheduler.clone()))),
-            (true, Box::new(DisassmWindow::new(mem.clone()))),
+            (true, Box::new(DisassmWindow::new(cpu.clone(), mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
+            (true, Box::new(BusWindow::new())),
         ],
         focus: 0,
     });
+
+    run_native(app);
+
+}
+
+#[allow(unsafe_code)]
+fn run_native<'a>(app: Box<dyn eframe::App + 'a>) -> ! {
 
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1024.0, 768.0)),
@@ -97,14 +102,15 @@ fn main() {
         ..Default::default()
     };
 
-    run_native(app, native_options);
-
-}
-
-#[allow(unsafe_code)]
-fn run_native<'a>(app: Box<dyn epi::App + 'a>, native_options: epi::NativeOptions) -> ! {
     let static_app = unsafe {
-        std::mem::transmute::<Box<dyn epi::App + 'a>, Box<dyn epi::App + 'static>>(app)
+        std::mem::transmute::<Box<dyn eframe::App + 'a>, Box<dyn eframe::App + 'static>>(app)
     };
-    eframe::run_native(static_app, native_options);
+
+    eframe::run_native(
+        "reSpectrum - ZX Spectrum emulator",
+        native_options,
+        Box::new(|_| static_app),
+
+    );
+
 }

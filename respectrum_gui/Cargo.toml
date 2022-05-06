@@ -10,4 +10,6 @@ path = "src/emul.rs"
 
 [dependencies]
 librespectrum = { path = "../librespectrum" }
-eframe = "^0.17.0"
+egui = "0.18.0"
+egui_extras = "0.18.0"
+eframe = "0.18.0"

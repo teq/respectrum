@@ -1,14 +1,13 @@
 [package]
-name = "respectrum_gui"
+name = "respectrum_iced"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "emul-gui"
+name = "emul-iced"
 path = "src/emul.rs"
 
 [dependencies]
 librespectrum = { path = "../librespectrum" }
-egui = "0.18.0"
-egui_extras = "0.18.0"
-eframe = "0.18.0"
+iced = { version = "0.4", features = ["pure"] }
+iced_native = "0.5"

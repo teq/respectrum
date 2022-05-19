@@ -1,7 +1,9 @@
 [workspace]
+resolver = "2"
 
 members = [
     "librespectrum",
     "respectrum_gui",
+    "respectrum_iced",
     "respectrum_tools",
 ]

@@ -1,10 +1,14 @@
-use std::{fmt, cell::Cell};
+use std::{
+    fmt,
+    cell::Cell,
+    mem::ManuallyDrop,
+};
 
 #[repr(C)]
 /// Stores u16 value in Cell and allows to access high & low bytes individually
 pub union U16Cell {
-    w: Cell<u16>,
-    b: WordBytes,
+    w: ManuallyDrop<Cell<u16>>,
+    b: ManuallyDrop<WordBytes>,
 }
 
 #[repr(C)]
@@ -24,7 +28,7 @@ pub struct WordBytes {
 impl Default for U16Cell {
 
     fn default() -> Self {
-        Self { w: Cell::new(0) }
+        Self { w: ManuallyDrop::new(Cell::new(0)) }
     }
 
 }

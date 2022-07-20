@@ -1,9 +1,11 @@
 [workspace]
+
 resolver = "2"
 
 members = [
+    "color_clash",
     "librespectrum",
-    "respectrum_gui",
+    "respectrum_egui",
     "respectrum_iced",
     "respectrum_tools",
 ]

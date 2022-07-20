@@ -110,7 +110,6 @@ fn run_native<'a>(app: Box<dyn eframe::App + 'a>) -> ! {
         "reSpectrum - ZX Spectrum emulator",
         native_options,
         Box::new(|_| static_app),
-
     );
 
 }

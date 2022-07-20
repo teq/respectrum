@@ -35,9 +35,9 @@ pub struct Cpu {
     pub sp: U16Cell,
     pub pc: U16Cell,
     pub ir: U16Cell,
-    pub iff1: bool,
-    pub iff2: bool,
-    pub im: u8,
+    pub iff1: Cell<bool>,
+    pub iff2: Cell<bool>,
+    pub im: Cell<u8>,
 
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
@@ -119,7 +119,7 @@ impl Device for Cpu {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
-                        flags.set(Flags::P, self.iff2);
+                        flags.set(Flags::P, self.iff2.get());
                         flags.set(Flags::Z, value == 0);
                         flags.set(Flags::S, (value as i8) < 0);
                         self.set_flags(flags);

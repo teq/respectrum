@@ -86,9 +86,9 @@ impl SubWindow for CpuWindow<'_> {
             });
 
             ui.horizontal(|ui| {
-                ui.colored_label(Color32::WHITE, format!("IM{}", self.cpu.im));
-                flag_label(ui, "IFF1", self.cpu.iff1);
-                flag_label(ui, "IFF2", self.cpu.iff2);
+                ui.label(format!("IM{}", self.cpu.im.get()));
+                flag_label(ui, "IFF1", self.cpu.iff1.get());
+                flag_label(ui, "IFF2", self.cpu.iff2.get());
             });
 
         })

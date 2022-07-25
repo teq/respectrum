@@ -1,5 +1,2 @@
 mod frame_buffer;
-pub use frame_buffer::{
-    FrameBuffer,
-    FrameBufferView,
-};
+pub use frame_buffer::FrameBufferView;

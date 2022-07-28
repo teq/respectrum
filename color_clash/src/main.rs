@@ -1,13 +1,13 @@
 use std::{
-    io::{self, BufReader, BufRead},
+    io::{self, BufReader},
     path::PathBuf,
     fs::File,
 };
 use druid::{
-    WindowId, Menu, Env,
-    widget::{Button, Flex, Label, Split, Image, FillStrat},
-    piet::{ImageBuf, InterpolationMode, ImageFormat},
-    AppLauncher, Data, Lens, PlatformError, Widget, WidgetExt, WindowDesc,
+    piet::Color,
+    widget::{Button, Flex, BackgroundBrush},
+    WindowId, Menu, Env, AppLauncher, Data, Lens,
+    PlatformError, Widget, WidgetExt, WindowDesc,
 };
 use clap::Parser;
 
@@ -16,7 +16,7 @@ mod widgets;
 
 use crate::{
     models::{VideoMode, FrameBuffer},
-    widgets::FrameBufferView,
+    widgets::{ZStack, FrameBufferView},
 };
 
 #[derive(Parser, Debug)]
@@ -59,7 +59,7 @@ fn main() -> Result<(), PlatformError> {
     };
 
     let main_window = WindowDesc::new(ui_builder())
-        .menu(make_menu)
+        // .menu(make_menu)
         .title("Color Clash");
 
     AppLauncher::with_window(main_window)
@@ -70,28 +70,34 @@ fn main() -> Result<(), PlatformError> {
 
 fn ui_builder() -> impl Widget<AppState> {
 
-    Split::columns(
-
-        Flex::column()
-            .with_child(
-                FrameBufferView {}
-            )
-            .lens(AppState::frame),
-
-        Flex::column()
-            .with_child(
-                Label::new(|state: &AppState, _env: &_| format!("Counter is {}", state.counter))
-                    .padding(5.0)
-                    .center()
-            )
-            .with_child(
-                Button::new("increment")
-                    .on_click(|_ctx, counter, _env| *counter += 1)
-                    .lens(AppState::counter)
-                    .padding(5.0)
-            )
-
-    )
+    ZStack::new()
+        .with_child(
+            FrameBufferView::new()
+                .lens(AppState::frame)
+                .scroll().center().expand()
+        )
+        .with_child(
+            Flex::column()
+                .with_child(Button::new("btn1"))
+                .with_child(Button::new("btn2"))
+                .padding(10.0)
+                .background(BackgroundBrush::Color(Color::from_rgba32_u32(0x00000060)))
+                .rounded(5.0)
+                .padding(10.0)
+                .align_left()
+        )
+        .with_child(
+            Flex::column()
+                .with_child(Button::new("btn3"))
+                .with_child(Button::new("btn4"))
+                .padding(10.0)
+                .background(BackgroundBrush::Color(Color::from_rgba32_u32(0x00000060)))
+                .rounded(5.0)
+                .padding(10.0)
+                .align_right()
+        )
+        // .debug_paint_layout()
+        // .debug_invalidation()
 
 }
 

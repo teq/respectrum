@@ -11,5 +11,5 @@ path = "src/main.rs"
 [dependencies]
 bitflags = "1"
 bitvec = "1"
-clap = "3"
+clap = { version = "3", features = ["derive"] }
 druid = { git = "https://github.com/linebender/druid.git", features = ["im"] }

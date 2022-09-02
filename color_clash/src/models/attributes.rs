@@ -1,27 +1,7 @@
 use druid::Data;
 use bitflags::bitflags;
 
-const NORMAL_PALETTE: [[u8; 3]; 8] = [
-    [0x00, 0x00, 0x00],
-    [0x00, 0x00, 0xee],
-    [0xee, 0x00, 0x00],
-    [0xee, 0x00, 0xee],
-    [0x00, 0xee, 0x00],
-    [0x00, 0xee, 0xee],
-    [0xee, 0xee, 0x00],
-    [0xee, 0xee, 0xee],
-];
-
-const BRIGHT_PALETTE: [[u8; 3]; 8] = [
-    [0x00, 0x00, 0x00],
-    [0x00, 0x00, 0xff],
-    [0xff, 0x00, 0x00],
-    [0xff, 0x00, 0xff],
-    [0x00, 0xff, 0x00],
-    [0x00, 0xff, 0xff],
-    [0xff, 0xff, 0x00],
-    [0xff, 0xff, 0xff],
-];
+use crate::palette::Color;
 
 bitflags! {
     /// Color, brightness and flash attributes
@@ -52,38 +32,42 @@ impl From<u8> for Attributes {
     }
 }
 
-
 impl Attributes {
 
-    pub fn get_paper(&self) -> u8 {
-        (*self & Attributes::PAPER_MASK).bits >> 3
+    pub fn get_paper(&self) -> Color {
+        ((*self & Attributes::PAPER_MASK).bits >> 3).into()
     }
 
-    pub fn get_ink(&self) -> u8 {
-        (*self & Attributes::INK_MASK).bits
+    pub fn get_ink(&self) -> Color {
+        (*self & Attributes::INK_MASK).bits.into()
     }
 
-    pub fn set_paper(&mut self, paper: u8) {
+    pub fn set_paper(&mut self, paper: impl Into<Color>) {
         *self &= !Attributes::PAPER_MASK;
-        *self |= ((paper & 7) << 3).into();
+        *self |= ((paper.into().index() as u8 & 7) << 3).into();
     }
 
-    pub fn set_ink(&mut self, ink: u8) {
+    pub fn set_ink(&mut self, ink: impl Into<Color>) {
         *self &= !Attributes::INK_MASK;
-        *self |= (ink & 7).into();
-    }
-
-    fn get_palette(&self) -> [[u8; 3]; 8] {
-        if self.contains(Attributes::BRIGHT) { BRIGHT_PALETTE } else { NORMAL_PALETTE }
+        *self |= (ink.into().index() as u8 & 7).into();
     }
 
     pub fn get_paper_rgb(&self) -> [u8; 3] {
-        self.get_palette()[self.get_paper() as usize]
+        let paper = self.get_paper();
+        self.get_rgb(paper)
     }
 
     pub fn get_ink_rgb(&self) -> [u8; 3] {
-        let palette = if self.contains(Attributes::BRIGHT) { BRIGHT_PALETTE } else { NORMAL_PALETTE };
-        self.get_palette()[self.get_ink() as usize]
+        let ink = self.get_ink();
+        self.get_rgb(ink)
+    }
+
+    fn get_rgb(&self, color: Color) -> [u8; 3] {
+        if self.contains(Attributes::BRIGHT) {
+            color.rgb_bright()
+        } else {
+            color.rgb_dim()
+        }
     }
 
 }
@@ -97,11 +81,11 @@ mod tests {
 
         let mut attr: Attributes = Default::default();
         assert!(!attr.contains(Attributes::FLASH | Attributes::BRIGHT));
-        assert_eq!(attr.get_paper(), 7);
-        assert_eq!(attr.get_ink(), 0);
+        assert_eq!(attr.get_paper(), 7usize);
+        assert_eq!(attr.get_ink(), 0usize);
 
-        attr.set_paper(3);
-        attr.set_ink(5);
+        attr.set_paper(3usize);
+        attr.set_ink(5usize);
         attr |= Attributes::FLASH | Attributes::BRIGHT;
         assert_eq!(attr.bits, 0b11011101);
 

@@ -6,15 +6,15 @@ use druid::{
 use crate::models::FrameBuffer;
 
 pub struct FrameBufferView {
-    pub base_zoom: usize,
-    pub zoom: usize,
+    pub base_zoom: f64,
+    pub zoom: f64,
     pub image: Vec<u8>,
 }
 
 impl FrameBufferView {
 
     pub fn new() -> Self {
-        Self { base_zoom: 3, zoom: 1, image: vec!() }
+        Self { base_zoom: 4.0, zoom: 1.0, image: vec!() }
     }
 
 }
@@ -33,8 +33,8 @@ impl Widget<FrameBuffer> for FrameBufferView {
 
     fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &FrameBuffer, _env: &Env) -> Size {
         bc.constrain((
-            (data.width * self.base_zoom * self.zoom) as f64,
-            (data.height * self.base_zoom * self.zoom) as f64
+            data.width as f64 * self.base_zoom * self.zoom,
+            data.height as f64 * self.base_zoom * self.zoom
         ))
     }
 

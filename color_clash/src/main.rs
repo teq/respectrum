@@ -12,6 +12,7 @@ use druid::{
 use clap::Parser;
 
 mod models;
+mod palette;
 mod widgets;
 
 use crate::{
@@ -37,15 +38,14 @@ struct Args {
 
 #[derive(Clone, Lens, Data)]
 pub struct AppState {
-    counter: u8,
-    frame: FrameBuffer,
+    frame_buffer: FrameBuffer,
 }
 
 fn main() -> Result<(), PlatformError> {
 
     let args = Args::parse();
 
-    let frame: FrameBuffer = if args.stdin {
+    let frame_buffer: FrameBuffer = if args.stdin {
         FrameBuffer::load(Box::new(BufReader::new(io::stdin())))
     } else if let Some(filename) = args.open {
         FrameBuffer::load(Box::new(BufReader::new(File::open(filename).unwrap())))
@@ -54,8 +54,7 @@ fn main() -> Result<(), PlatformError> {
     };
 
     let state = AppState {
-        counter: 0,
-        frame,
+        frame_buffer,
     };
 
     let main_window = WindowDesc::new(ui_builder())
@@ -73,7 +72,7 @@ fn ui_builder() -> impl Widget<AppState> {
     ZStack::new()
         .with_child(
             FrameBufferView::new()
-                .lens(AppState::frame)
+                .lens(AppState::frame_buffer)
                 .scroll().center().expand()
         )
         .with_child(

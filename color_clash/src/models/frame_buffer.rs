@@ -61,7 +61,7 @@ impl FrameBuffer {
 
         Self {
             cols, rows, width, height, pixels,
-            attrs: attr_buf.iter().map(|x| x.into()).collect(),
+            attrs: attr_buf.iter().map(|x| (*x).into()).collect(),
         }
 
     }

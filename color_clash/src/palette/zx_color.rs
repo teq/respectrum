@@ -1,3 +1,4 @@
+use druid::Data;
 
 const PALETTE: [([u8; 3], [u8; 3]); 8] = [
     ([0x00, 0x00, 0x00], [0x00, 0x00, 0x00]),
@@ -10,12 +11,12 @@ const PALETTE: [([u8; 3], [u8; 3]); 8] = [
     ([0xee, 0xee, 0xee], [0xff, 0xff, 0xff]),
 ];
 
-#[derive(Debug)]
-pub struct Color {
+#[derive(Debug, Default, Clone, Data)]
+pub struct ZXColor {
     index: usize
 }
 
-impl Color {
+impl ZXColor {
 
     pub fn palette() -> Vec<Self> {
         (0..PALETTE.len()).map(|index| Self{index}).collect()
@@ -40,19 +41,19 @@ impl Color {
 
 }
 
-impl<T> From<T> for Color where T: Into<usize> {
+impl<T> From<T> for ZXColor where T: Into<usize> {
     fn from(index: T) -> Self {
         Self::new(index.into())
     }
 }
 
-impl PartialEq for Color {
-    fn eq(&self, other: &Color) -> bool {
+impl PartialEq for ZXColor {
+    fn eq(&self, other: &ZXColor) -> bool {
         self.index == other.index
     }
 }
 
-impl<T> PartialEq<T> for Color where T: Into<usize> + Copy {
+impl<T> PartialEq<T> for ZXColor where T: Into<usize> + Copy {
     fn eq(&self, other: &T) -> bool {
         self.index == (*other).into()
     }

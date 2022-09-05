@@ -1,18 +1,21 @@
-use super::Color;
+use super::ZXColor;
+use druid::{Data, Lens};
 
+#[derive(Default)]
+#[derive(Clone, Lens, Data)]
 pub struct BlendingMode {
     pixel: PixelBlending,
-    color: ColorBlending,
+    ink: Option<ZXColor>,
+    paper: Option<ZXColor>,
+    bright: bool,
+    flash: bool,
 }
 
+#[derive(Default)]
+#[derive(Clone, PartialEq, Data)]
 pub enum PixelBlending {
+    #[default] XOR,
     SET,
-    RESET,
-    TOGGLE,
-    NOP,
-}
-
-pub enum ColorBlending {
-    SET(Color),
+    RES,
     NOP,
 }

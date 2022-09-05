@@ -1,5 +1,5 @@
 mod blending;
 pub use blending::*;
 
-mod color;
-pub use color::Color;
+mod zx_color;
+pub use zx_color::ZXColor;

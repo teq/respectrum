@@ -6,6 +6,5 @@ members = [
     "color_clash",
     "librespectrum",
     "respectrum_egui",
-    "respectrum_iced",
     "respectrum_tools",
 ]

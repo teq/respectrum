@@ -1,15 +1,18 @@
 use egui::*;
 use egui_extras::{Size, TableBuilder};
+use librespectrum::devs::BusLogger;
+use std::{rc::Rc};
 
 use super::{SubWindow, draw_window};
 
 pub struct BusWindow {
+    logger: Rc<BusLogger>
 }
 
 impl BusWindow {
 
-    pub fn new() -> Self {
-        Self { }
+    pub fn new(logger: Rc<BusLogger>) -> Self {
+        Self { logger }
     }
 
 }
@@ -48,7 +51,7 @@ impl SubWindow for BusWindow {
                 })
                 .body(|body| {
                     body.rows(text_height, 10, |row_index, mut row| {
-                        row.col(|ui| { ui.label("12345"); });
+                        row.col(|ui| { ui.label(format!("{:x}", row_index)); });
                         row.col(|ui| { ui.label("0000"); });
                         row.col(|ui| { ui.label("00"); });
                         row.col(|ui| { ui.label("0"); });

@@ -12,7 +12,7 @@ pub struct CpuWindow<'a> {
 impl<'a> CpuWindow<'a> {
 
     pub fn new(cpu: Rc<Cpu>, scheduler: Rc<RefCell<Scheduler<'a>>>) -> Self {
-        CpuWindow { cpu, scheduler }
+        Self { cpu, scheduler }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {

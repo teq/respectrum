@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     mkword, spword, yield_from,
-    bus::{NoReturnTask, Clock, CpuBus, Task, Ctls, Outs},
+    bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl, Outs},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp},
         decoder::instruction_decoder,
@@ -594,10 +594,10 @@ impl Cpu {
         move || {
             yield self.clock.rising(1); // *** T1 rising ***
             self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::M1);
             yield self.clock.falling(1); // *** T1 falling ***
-            self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::RD);
+            self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // *** T2 falling ***
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
@@ -605,12 +605,12 @@ impl Cpu {
             yield self.clock.rising(1); // *** T3 rising ***
             let byte = self.bus.data.expect();
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
-            self.bus.ctrl.drive(self, Ctls::NONE); // clear MREQ & RD
+            self.bus.ctrl.drive(self, Ctrl::NONE); // clear MREQ & RD
             self.bus.outs.drive(self, Outs::RFSH);
             yield self.clock.falling(1); // *** T3 falling ***
-            self.bus.ctrl.drive(self, Ctls::MREQ);
+            self.bus.ctrl.drive(self, Ctrl::MREQ);
             yield self.clock.falling(1); // *** T4 falling ***
-            self.bus.ctrl.drive(self, Ctls::NONE); // clear MREQ
+            self.bus.ctrl.drive(self, Ctrl::NONE); // clear MREQ
             // Increment R (lower 7 bits)
             let r = self.rg(Reg::R).get();
             self.rg(Reg::R).set(((r + 1) & 0x7f) | (r & 0x80));
@@ -623,17 +623,17 @@ impl Cpu {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
-            self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::RD);
+            self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             return byte;
         }
     }
@@ -643,18 +643,18 @@ impl Cpu {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
             self.bus.data.drive(self, val);
-            self.bus.ctrl.drive(self, Ctls::MREQ);
+            self.bus.ctrl.drive(self, Ctrl::MREQ);
             yield self.clock.falling(1); // T2 falling
-            self.bus.ctrl.drive(self, Ctls::MREQ | Ctls::WR);
+            self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::WR);
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.data.release(self);
         }
     }
@@ -689,17 +689,17 @@ impl Cpu {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.rising(1); // T2 rising
-            self.bus.ctrl.drive(self, Ctls::IORQ | Ctls::RD);
+            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
             yield self.clock.falling(2); // TW falling
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             return byte;
         }
     }
@@ -709,18 +709,18 @@ impl Cpu {
         move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
             self.bus.data.drive(self, val);
             yield self.clock.rising(1); // T2 rising
-            self.bus.ctrl.drive(self, Ctls::IORQ | Ctls::WR);
+            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
             yield self.clock.falling(2); // TW falling
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
             }
             yield self.clock.falling(1); // T3 falling
-            self.bus.ctrl.drive(self, Ctls::NONE);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.data.release(self);
         }
     }

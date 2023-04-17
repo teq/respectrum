@@ -1,7 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    bus::{Clock, CpuBus, Ctls, NoReturnTask},
+    bus::{Clock, CpuBus, Ctrl, NoReturnTask},
     devs::Device, misc::Identifiable,
 };
 use super::Memory;
@@ -65,7 +65,7 @@ impl Device for Dynamic48k {
             loop {
 
                 // Wait for MREQ
-                while !self.bus.ctrl.probe().unwrap_or(Ctls::NONE).contains(Ctls::MREQ) {
+                while !self.bus.ctrl.probe().unwrap_or(Ctrl::NONE).contains(Ctrl::MREQ) {
                     yield self.clock.rising(1);
                 }
 
@@ -73,11 +73,11 @@ impl Device for Dynamic48k {
                 let ctrl = self.bus.ctrl.expect();
 
                 // Perform read or write
-                if ctrl.contains(Ctls::RD) {
+                if ctrl.contains(Ctrl::RD) {
                     self.bus.data.drive(self, self.read(addr));
                     yield self.clock.rising(3);
                     self.bus.data.release(self);
-                } else if ctrl.contains(Ctls::WR) {
+                } else if ctrl.contains(Ctrl::WR) {
                     let byte = self.bus.data.expect();
                     self.write(addr, byte);
                     yield self.clock.rising(2);

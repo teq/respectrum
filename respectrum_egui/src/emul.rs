@@ -4,7 +4,7 @@ extern crate librespectrum;
 
 use librespectrum::{
     bus::{CpuBus, Clock, Scheduler},
-    devs::{mem::Dynamic48k, Device, Cpu}
+    devs::{mem::Dynamic48k, Device, Cpu, BusLogger}
 };
 
 use std::{
@@ -68,15 +68,17 @@ fn main() {
     let bus: Rc<CpuBus> = Default::default();
     let clock: Rc<Clock> = Default::default();
     let cpu = Rc::new(Cpu::new(bus.clone(), clock.clone()));
-    let mem = Rc::new(Dynamic48k::new(bus.clone(), clock.clone()));
-
-    let mut file = File::open("roms/48.rom").unwrap();
-    let mut buffer: Vec<u8> = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
-    mem.load(0, &buffer);
+    let mem = {
+        let mem = Rc::new(Dynamic48k::new(bus.clone(), clock.clone()));
+        let mut buffer: Vec<u8> = Vec::new();
+        File::open("roms/48.rom").unwrap().read_to_end(&mut buffer).unwrap();
+        mem.load(0, &buffer);
+        mem
+    };
+    let logger = Rc::new(BusLogger::new(bus.clone(), clock.clone()));
 
     let scheduler =  Rc::new(RefCell::new(
-        Scheduler::new(clock.clone(), vec![cpu.run(), mem.run()])
+        Scheduler::new(clock.clone(), vec![cpu.run(), mem.run(), logger.run()])
     ));
 
     let app = Box::new(EmulApp {
@@ -84,7 +86,7 @@ fn main() {
             (true, Box::new(CpuWindow::new(cpu.clone(), scheduler.clone()))),
             (true, Box::new(DisassmWindow::new(cpu.clone(), mem.clone()))),
             (true, Box::new(MemoryWindow::new(mem.clone()))),
-            (true, Box::new(BusWindow::new())),
+            (true, Box::new(BusWindow::new(logger.clone()))),
         ],
         focus: 0,
     });

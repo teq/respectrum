@@ -2,7 +2,7 @@ use super::BusLine;
 
 bitflags! {
     #[derive(Default)]
-    pub struct Ctls : u8 {
+    pub struct Ctrl : u8 {
         const NONE = 0;
         const MREQ = 1 << 0;
         const IORQ = 1 << 1;
@@ -29,7 +29,7 @@ pub struct CpuBus {
     /// Data bus (tri-state in/outputs)
     pub data: BusLine<u8>,
     /// Tri-state control outputs
-    pub ctrl: BusLine<Ctls>,
+    pub ctrl: BusLine<Ctrl>,
     /// Control outputs
     pub outs: BusLine<Outs>,
     /// WAIT input
@@ -49,7 +49,7 @@ impl Default for CpuBus {
         Self {
             addr: BusLine::<u16>::new("ADDR"),
             data: BusLine::<u8>::new("DATA"),
-            ctrl: BusLine::<Ctls>::new("CTRL"),
+            ctrl: BusLine::<Ctrl>::new("CTRL"),
             outs: BusLine::<Outs>::new("OUTS"),
             wait: BusLine::<bool>::new("WAIT"),
             int: BusLine::<bool>::new("INT"),

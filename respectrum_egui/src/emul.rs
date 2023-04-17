@@ -4,7 +4,7 @@ extern crate librespectrum;
 
 use librespectrum::{
     bus::{CpuBus, Clock, Scheduler},
-    devs::{mem::Dynamic48k, Device, Cpu, BusLogger}
+    devs::{mem::{Dynamic48k, Memory}, Device, Cpu, BusLogger}
 };
 
 use std::{
@@ -67,26 +67,26 @@ fn main() {
 
     let bus: Rc<CpuBus> = Default::default();
     let clock: Rc<Clock> = Default::default();
-    let cpu = Rc::new(Cpu::new(bus.clone(), clock.clone()));
-    let mem = {
-        let mem = Rc::new(Dynamic48k::new(bus.clone(), clock.clone()));
+    let cpu = Rc::new(Cpu::new(Rc::clone(&bus), Rc::clone(&clock)));
+    let mem: Rc<dyn Memory> = {
+        let mem = Rc::new(Dynamic48k::new(Rc::clone(&bus), Rc::clone(&clock)));
         let mut buffer: Vec<u8> = Vec::new();
         File::open("roms/48.rom").unwrap().read_to_end(&mut buffer).unwrap();
         mem.load(0, &buffer);
         mem
     };
-    let logger = Rc::new(BusLogger::new(bus.clone(), clock.clone()));
+    let logger = Rc::new(BusLogger::new(Rc::clone(&bus), Rc::clone(&clock)));
 
     let scheduler =  Rc::new(RefCell::new(
-        Scheduler::new(clock.clone(), vec![cpu.run(), mem.run(), logger.run()])
+        Scheduler::new(Rc::clone(&clock), vec![cpu.run(), mem.run(), logger.run()])
     ));
 
     let app = Box::new(EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(cpu.clone(), scheduler.clone()))),
-            (true, Box::new(DisassmWindow::new(cpu.clone(), mem.clone()))),
-            (true, Box::new(MemoryWindow::new(mem.clone()))),
-            (true, Box::new(BusWindow::new(logger.clone()))),
+            (true, Box::new(CpuWindow::new(Rc::clone(&cpu), Rc::clone(&scheduler)))),
+            (true, Box::new(DisassmWindow::new(Rc::clone(&cpu), Rc::clone(&mem)))),
+            (true, Box::new(MemoryWindow::new(Rc::clone(&mem)))),
+            (true, Box::new(BusWindow::new(Rc::clone(&logger)))),
         ],
         focus: 0,
     });

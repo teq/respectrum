@@ -1,4 +1,4 @@
-use std::{rc::Rc};
+use std::{rc::Rc, cell::RefCell};
 
 use crate::{
     bus::{Clock, CpuBus, NoReturnTask, Outs, Ctrl},
@@ -23,13 +23,13 @@ pub struct BusState {
 pub struct BusLogger {
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
-    pub readings: RingBuff<BusState, 64>,
+    pub readings: RefCell<RingBuff<BusState, 64>>,
 }
 
 impl BusLogger {
 
     pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self { bus, clock, readings: RingBuff::new() }
+        Self { bus, clock, readings: RefCell::new(RingBuff::new()) }
     }
 
 }
@@ -61,7 +61,7 @@ impl Device for BusLogger {
                     busrq: self.bus.busrq.probe(),
                 };
 
-                // self.readings.push(state);
+                self.readings.borrow_mut().push(state);
 
                 yield 1;
 

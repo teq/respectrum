@@ -1,5 +1,6 @@
+use crate::devs::Device;
 
-pub trait Memory {
+pub trait Memory: Device {
 
     /// Check if given address is writable (located in RAM)
     fn writable(&self, addr: u16) -> bool;

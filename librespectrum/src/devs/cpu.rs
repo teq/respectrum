@@ -2,7 +2,7 @@ use std::{
     rc::Rc,
     pin::Pin,
     cell::Cell,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
 };
 
 use crate::{
@@ -62,7 +62,7 @@ impl Device for Cpu {
     /// Run CPU device task
     fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
-        Box::new(move || {
+        Box::new(#[coroutine] move || {
 
             // Instruction loop
             loop {
@@ -73,7 +73,7 @@ impl Device for Cpu {
                 // Instruction decode loop
                 let instruction = loop {
 
-                    let pc = self.next_pc(1);
+                    let pc = self.advance_pc(1);
 
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
@@ -82,8 +82,8 @@ impl Device for Cpu {
                     };
 
                     match Pin::new(&mut decoder).resume(byte) {
-                        GeneratorState::Yielded(result) => upnext = result.upnext,
-                        GeneratorState::Complete(instruction) => break instruction
+                        CoroutineState::Yielded(result) => upnext = result.upnext,
+                        CoroutineState::Complete(instruction) => break instruction
                     }
 
                 };
@@ -211,10 +211,10 @@ impl Device for Cpu {
                     Token::BLOP(BlockOp::LDD) => yield_from!(self.memory_copy(-1, false)),
                     Token::BLOP(BlockOp::LDIR) => yield_from!(self.memory_copy(1, true)),
                     Token::BLOP(BlockOp::LDDR) => yield_from!(self.memory_copy(-1, true)),
-                    Token::BLOP(BlockOp::CPI) => unimplemented!(),
-                    Token::BLOP(BlockOp::CPD) => unimplemented!(),
-                    Token::BLOP(BlockOp::CPIR) => unimplemented!(),
-                    Token::BLOP(BlockOp::CPDR) => unimplemented!(),
+                    Token::BLOP(BlockOp::CPI) => yield_from!(self.memory_cmp(1, false)),
+                    Token::BLOP(BlockOp::CPD) => yield_from!(self.memory_cmp(-1, false)),
+                    Token::BLOP(BlockOp::CPIR) => yield_from!(self.memory_cmp(1, true)),
+                    Token::BLOP(BlockOp::CPDR) => yield_from!(self.memory_cmp(-1, true)),
 
                     // 8-bit arithmetic and logic
 
@@ -582,16 +582,25 @@ impl Cpu {
     }
 
     /// Return current PC value and inc or dec it for the next read
-    fn next_pc(&self, increment: i8) -> u16 {
+    fn advance_pc(&self, offset: i8) -> u16 {
         let pc = self.rp(RegPair::PC).get(); // read current PC
-        self.rp(RegPair::PC).set(pc.wrapping_add(increment as u16));
+        self.rp(RegPair::PC).set(pc.wrapping_add(offset as u16));
         return pc;
+    }
+
+    /// Probe WAIT signal and wait if it's set
+    fn probe_wait<'a>(&'a self) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            while self.bus.wait.probe().unwrap_or(false) {
+                yield self.clock.falling(1); // wait 1 t-cycle
+            }
+        }
     }
 
     /// Instruction opcode fetch m-cycle
     /// (usually referred to as M1). Takes 4 t-cycles.
     fn opcode_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        move || {
+        #[coroutine] move || {
             yield self.clock.rising(1); // *** T1 rising ***
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -599,9 +608,7 @@ impl Cpu {
             yield self.clock.falling(1); // *** T1 falling ***
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // *** T2 falling ***
-            while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
-            }
+            yield_from!(self.probe_wait());
             yield self.clock.rising(1); // *** T3 rising ***
             let byte = self.bus.data.expect();
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
@@ -620,7 +627,7 @@ impl Cpu {
 
     /// Memory read m-cycle. Takes 3 t-cycles.
     fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        move || {
+        #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -628,9 +635,7 @@ impl Cpu {
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
-            while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
-            }
+            yield_from!(self.probe_wait());
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -640,7 +645,7 @@ impl Cpu {
 
     /// Memory write m-cycle. Takes 3 t-cycles
     fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
-        move || {
+        #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -650,9 +655,7 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctrl::MREQ);
             yield self.clock.falling(1); // T2 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::WR);
-            while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
-            }
+            yield_from!(self.probe_wait());
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.data.release(self);
@@ -661,7 +664,7 @@ impl Cpu {
 
     /// Copy memory byte (DE)<-(HL), inc or dec HL&DE, dec BC
     fn memory_copy<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
-        move || {
+        #[coroutine] move || {
             let src = self.rp(RegPair::HL).get();
             let dst = self.rp(RegPair::DE).get();
             let counter = self.rp(RegPair::BC).get().wrapping_sub(1);
@@ -671,7 +674,7 @@ impl Cpu {
             self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
             self.rp(RegPair::DE).set(dst.wrapping_add(increment as u16));
             self.rp(RegPair::BC).set(counter);
-            let summ = self.rg(Reg::A).get() + value;
+            let summ = self.rg(Reg::A).get().wrapping_add(value);
             let mut flags = self.get_flags() & (Flags::C | Flags::Z | Flags::S);
             flags.set(Flags::P, counter != 0);
             flags.set(Flags::Y, summ & (1 << 1) != 0);
@@ -679,14 +682,30 @@ impl Cpu {
             self.set_flags(flags);
             if repeat && counter != 0 {
                 yield self.clock.rising(5);
-                self.next_pc(-2); // rewind PC 2 bytes back
+                self.advance_pc(-2); // rewind PC 2 bytes back
+            }
+        }
+    }
+
+    /// Compare A against (HL), inc or dec HL, dec BC
+    fn memory_cmp<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            let ptr = self.rp(RegPair::HL).get();
+            let counter = self.rp(RegPair::BC).get().wrapping_sub(1);
+            let value = yield_from!(self.memory_read(ptr));
+            self.rp(RegPair::HL).set(ptr.wrapping_add(increment as u16));
+            yield self.clock.rising(5);
+            self.rp(RegPair::BC).set(counter);
+            if repeat && counter != 0 {
+                yield self.clock.rising(5);
+                self.advance_pc(-2); // rewind PC 2 bytes back
             }
         }
     }
 
     /// IO read m-cycle
     fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        move || {
+        #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -694,9 +713,7 @@ impl Cpu {
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
             yield self.clock.falling(2); // TW falling
-            while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
-            }
+            yield_from!(self.probe_wait());
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -706,7 +723,7 @@ impl Cpu {
 
     /// IO write m-cycle
     fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
-        move || {
+        #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
@@ -716,9 +733,7 @@ impl Cpu {
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
             yield self.clock.falling(2); // TW falling
-            while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
-            }
+            yield_from!(self.probe_wait());
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.data.release(self);

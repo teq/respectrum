@@ -25,8 +25,8 @@ macro_rules! yield_from {
             let mut task = $input;
             loop {
                 match std::pin::Pin::new(&mut task).resume(()) {
-                    std::ops::GeneratorState::Yielded(some) => yield some,
-                    std::ops::GeneratorState::Complete(result) => break result
+                    std::ops::CoroutineState::Yielded(some) => yield some,
+                    std::ops::CoroutineState::Complete(result) => break result
                 }
             }
         }

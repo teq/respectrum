@@ -47,7 +47,7 @@ impl<T: Data> Widget<T> for ZStack<T> {
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         for child in self.children.iter_mut() {
             child.layout(ctx, bc, data, env);
-            child.set_origin(ctx, data, env, Point::ORIGIN);
+            // child.set_origin(ctx, data, env, Point::ORIGIN);
         }
         bc.max()
     }

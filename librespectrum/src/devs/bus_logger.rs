@@ -44,7 +44,7 @@ impl Device for BusLogger {
 
     fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
-        Box::new(move || {
+        Box::new(#[coroutine] move || {
 
             loop {
 

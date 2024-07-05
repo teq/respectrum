@@ -1,4 +1,4 @@
-#![feature(generators, generator_trait)]
+#![feature(coroutines, coroutine_trait)]
 
 extern crate librespectrum;
 
@@ -6,7 +6,7 @@ use std::{
     fs::File,
     pin::Pin,
     io::{self, BufRead},
-    ops::{Generator, GeneratorState}
+    ops::{Coroutine, CoroutineState}
 };
 
 use librespectrum::cpu::decoder::instruction_decoder;
@@ -48,7 +48,7 @@ fn disassembler_recognizes_all_z80_opcodes() {
             if bytes_iter.peek().is_some() {
 
                 // Some bytes left in current opcode, disassembler should yield nothing
-                if let GeneratorState::Complete(instruction) = result {
+                if let CoroutineState::Complete(instruction) = result {
                     report_failure(format!(
                         "Unexpected output when parsing byte number {}: {}",
                         byte_num, instruction
@@ -58,7 +58,7 @@ fn disassembler_recognizes_all_z80_opcodes() {
             } else {
 
                 // It's the last byte for current opcode, disassembler should yield a line
-                if let GeneratorState::Complete(instruction) = result {
+                if let CoroutineState::Complete(instruction) = result {
 
                     let formatted_mnemonic = instruction.format_mnemonic();
                     if formatted_mnemonic != expected_mnemonic  {

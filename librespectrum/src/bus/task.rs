@@ -2,17 +2,16 @@ use std::{
     fmt,
     rc::Rc,
     pin::Pin,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
 };
 
 use super::Clock;
 
-/// Generator which returns a value when it's completed
+/// Task which returns a value when it's completed
 /// or yields next wake up time as an offset in half t-cycles to the current clock
-pub trait Task<T> = Generator<(), Yield=usize, Return=T> + Unpin;
+pub trait Task<T> = Coroutine<(), Yield=usize, Return=T> + Unpin;
 
-/// Generator which never returns and yields next wake up time
-/// as an offset in half t-cycles to the current clock
+/// Task which never returns
 pub trait NoReturnTask = Task<!>;
 
 /// Task execution step
@@ -94,7 +93,7 @@ impl<'a> Scheduler<'a> {
 
             // Advance to task's htcycles and continue task execution
             self.clock.set(task_htcycles);
-            if let GeneratorState::Yielded(offset) = Pin::new(task).resume(()) {
+            if let CoroutineState::Yielded(offset) = Pin::new(task).resume(()) {
                 // Re-schedule current task with returned htcycles offset
                 Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
             } else {
@@ -132,7 +131,7 @@ mod tests {
     struct Foo { state: Rc<SharedState> }
     impl Foo {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
-            Box::new(move || {
+            Box::new(#[coroutine] move || {
                 loop {
                     yield self.state.clock.rising(3); // skip to 3rd raising edge
                     self.state.seq.borrow_mut().push((self.state.clock.get(), true));
@@ -144,7 +143,7 @@ mod tests {
     struct Bar { state: Rc<SharedState> }
     impl Bar {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
-            Box::new(move || {
+            Box::new(#[coroutine] move || {
                 loop {
                     yield self.state.clock.falling(1); // skip to 1st falling edge
                     self.state.seq.borrow_mut().push((self.state.clock.get(), false));

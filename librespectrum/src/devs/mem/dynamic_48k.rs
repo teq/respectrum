@@ -60,7 +60,7 @@ impl Device for Dynamic48k {
 
     fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
-        Box::new(move || {
+        Box::new(#[coroutine] move || {
 
             loop {
 

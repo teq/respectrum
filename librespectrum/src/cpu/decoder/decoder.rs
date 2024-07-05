@@ -1,6 +1,6 @@
 use std::{
     pin::Pin,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
 };
 
 use crate::{
@@ -21,24 +21,24 @@ pub struct TokenDecodeResult {
     pub upnext: TokenType,
 }
 
-/// Create generator which accepts bytes, yields decoded
+/// Create coroutine which accepts bytes, yields decoded
 /// tokens and returns cpu instruction when entire instruction sequence is decoded
-pub fn instruction_decoder() -> impl Generator<u8, Yield=TokenDecodeResult, Return=Instruction> {
+pub fn instruction_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=Instruction> {
 
     let mut tdecoder = token_decoder();
     let mut displacement: Option<i8> = None;
     let mut data: Option<DataValue> = None;
     let mut opcode: Option<Token> = None;
 
-    move |mut byte: u8| {
+    #[coroutine] move |mut byte: u8| {
 
         loop {
 
             let state = Pin::new(&mut tdecoder).resume(byte);
 
             let (complete, result) = match state {
-                GeneratorState::Yielded(result) => (false, result),
-                GeneratorState::Complete(result) => (true, result),
+                CoroutineState::Yielded(result) => (false, result),
+                CoroutineState::Complete(result) => (true, result),
             };
 
             match result.token {
@@ -70,11 +70,11 @@ fn get_z(byte: u8) -> u8 {  byte & 0b00000111       }
 fn get_p(byte: u8) -> u8 { (byte & 0b00110000) >> 4 }
 fn get_q(byte: u8) -> u8 { (byte & 0b00001000) >> 3 }
 
-/// Create generator which accepts bytes, yields decoded
+/// Create coroutine which accepts bytes, yields decoded
 /// tokens and returns when entire instruction sequence is decoded
-fn token_decoder() -> impl Generator<u8, Yield=TokenDecodeResult, Return=TokenDecodeResult> {
+fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDecodeResult> {
 
-    |mut byte: u8| {
+    #[coroutine] |mut byte: u8| {
 
         let mut prefix: Option<u16> = None;
 
@@ -83,7 +83,7 @@ fn token_decoder() -> impl Generator<u8, Yield=TokenDecodeResult, Return=TokenDe
             // Here we try to interpret incoming bytes as prefix bytes until we reach actual opcode
             // or displacement byte
             let mut pdecoder = prefix_decoder();
-            while let GeneratorState::Yielded(result) = Pin::new(&mut pdecoder).resume(byte) {
+            while let CoroutineState::Yielded(result) = Pin::new(&mut pdecoder).resume(byte) {
                 if let TokenDecodeResult { token: Token::Prefix(code), .. } = result {
                     prefix = Some(code);
                 }
@@ -495,11 +495,11 @@ fn token_decoder() -> impl Generator<u8, Yield=TokenDecodeResult, Return=TokenDe
 
 }
 
-/// Create generator which accepts bytes, yields decoded
+/// Create coroutine which accepts bytes, yields decoded
 /// prefix tokens and completes on first non-prefix token
-fn prefix_decoder() -> impl Generator<u8, Yield=TokenDecodeResult> {
+fn prefix_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult> {
 
-    |mut byte: u8| {
+    #[coroutine] |mut byte: u8| {
 
         let mut current_prefix: Option<u16> = None;
 

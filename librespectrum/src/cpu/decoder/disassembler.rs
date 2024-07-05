@@ -1,6 +1,6 @@
 use std::{
     pin::Pin,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
 };
 
 use super::{Instruction, instruction_decoder};
@@ -14,19 +14,19 @@ pub struct DisassembledLine {
 pub fn disassembler(
     base_address: u16,
     line_bytes: usize
-) -> impl Generator<u8, Yield=Option<DisassembledLine>, Return=!> {
+) -> impl Coroutine<u8, Yield=Option<DisassembledLine>, Return=!> {
 
     let mut address = base_address;
     let mut bytes = Vec::with_capacity(line_bytes);
     let mut decoder = instruction_decoder();
 
-    move |mut byte: u8| {
+    #[coroutine] move |mut byte: u8| {
 
         loop {
 
             bytes.push(byte);
             let bytes_len = bytes.len() as u16;
-            if let GeneratorState::Complete(instruction) = Pin::new(&mut decoder).resume(byte) {
+            if let CoroutineState::Complete(instruction) = Pin::new(&mut decoder).resume(byte) {
                 byte = yield Some(DisassembledLine { address, bytes, instruction: Some(instruction) });
                 address = address.wrapping_add(bytes_len);
                 bytes = Vec::with_capacity(line_bytes);

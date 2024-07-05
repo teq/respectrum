@@ -1,4 +1,4 @@
-#![feature(generators, generator_trait)]
+#![feature(coroutines, coroutine_trait)]
 
 extern crate librespectrum;
 
@@ -9,7 +9,7 @@ use std::{
     vec::Vec,
     pin::Pin,
     path::PathBuf,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
     io::{self, BufReader, BufRead, Read}
 };
 
@@ -47,7 +47,7 @@ fn main() {
 
     while let Some(Ok(byte)) = bytes.next() {
 
-        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+        if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
             println!(
                 "{:0>4X}: {:<bytes$} | {}",
                 line.address,

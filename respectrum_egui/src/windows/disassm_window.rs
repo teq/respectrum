@@ -2,7 +2,7 @@ use std::{
     cmp::min,
     rc::Rc,
     pin::Pin,
-    ops::{Generator, GeneratorState},
+    ops::{Coroutine, CoroutineState},
 };
 
 use egui::*;
@@ -38,7 +38,7 @@ impl DisassmWindow {
         loop {
             let byte = self.memory.read(ptr);
             ptr = ptr.wrapping_add(1);
-            if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+            if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
                 if (line.address.wrapping_sub(self.addr) as i16) >= 0 {
                     return prev;
                 }
@@ -53,7 +53,7 @@ impl DisassmWindow {
         loop {
             let byte = self.memory.read(ptr);
             ptr = ptr.wrapping_add(1);
-            if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+            if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
                 if (line.address.wrapping_sub(self.addr) as i16) > 0 {
                     return line.address;
                 }
@@ -105,7 +105,7 @@ impl SubWindow for DisassmWindow {
                     let line = loop {
                         let byte = self.memory.read(ptr);
                         ptr = ptr.wrapping_add(1);
-                        if let GeneratorState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
+                        if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
                             break line;
                         }
                     };

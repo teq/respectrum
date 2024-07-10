@@ -1,7 +1,7 @@
 use egui::*;
 use egui_extras::{Size, TableBuilder};
 use librespectrum::{devs::BusLogger, bus::{Ctrl, Outs}};
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use super::{SubWindow, draw_window};
 
@@ -10,11 +10,9 @@ pub struct BusWindow {
 }
 
 impl BusWindow {
-
     pub fn new(logger: Rc<BusLogger>) -> Self {
         Self { logger }
     }
-
 }
 
 impl SubWindow for BusWindow {

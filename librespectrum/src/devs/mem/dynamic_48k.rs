@@ -51,9 +51,7 @@ impl Memory for Dynamic48k {
 }
 
 impl Identifiable for Dynamic48k {
-
     fn id(&self) -> u32 { 2 }
-
 }
 
 impl Device for Dynamic48k {

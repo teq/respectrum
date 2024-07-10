@@ -10,19 +10,25 @@ pub struct CpuWindow<'a> {
 }
 
 impl<'a> CpuWindow<'a> {
-
     pub fn new(cpu: Rc<Cpu>, scheduler: Rc<RefCell<Scheduler<'a>>>) -> Self {
         Self { cpu, scheduler }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {
-
         if input.key_pressed(Key::Enter) {
             self.scheduler.borrow_mut().advance(1);
         }
-
     }
+}
 
+fn reg_label(ui: &mut Ui, label: &str, value: u16) {
+    ui.label(label);
+    ui.label(format!("{:04X}", value));
+}
+
+fn flag_label(ui: &mut Ui, label: &str, is_set: bool) {
+    let color = if is_set { Color32::GREEN } else { Color32::GRAY };
+    ui.colored_label(color, label);
 }
 
 impl SubWindow for CpuWindow<'_> {
@@ -30,16 +36,6 @@ impl SubWindow for CpuWindow<'_> {
     fn name(&self) -> String { String::from("CPU") }
 
     fn show(&mut self, ctx: &Context, focused: bool) -> Response {
-
-        let reg_label = |ui: &mut Ui, label: &str, value: u16| {
-            ui.label(label);
-            ui.label(format!("{:04X}", value));
-        };
-
-        let flag_label = |ui: &mut Ui, label: &str, is_set: bool| {
-            let color = if is_set { Color32::GREEN } else { Color32::GRAY };
-            ui.colored_label(color, label);
-        };
 
         draw_window(self.name(), focused, ctx, |ui| {
 

@@ -21,7 +21,6 @@ use super::Device;
 /// Z80 CPU
 #[derive(Default)]
 pub struct Cpu {
-
     pub af: U16Cell,
     pub bc: U16Cell,
     pub de: U16Cell,
@@ -38,23 +37,20 @@ pub struct Cpu {
     pub iff1: Cell<bool>,
     pub iff2: Cell<bool>,
     pub im: Cell<u8>,
-
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
-
 }
 
-#[inline]
 fn parity(value: u8) -> bool {
-    // TODO: Optimize it by using a CPU flag or
-    // http://www.graphics.stanford.edu/~seander/bithacks.html#ParityParallel
-    value.count_ones() % 2 == 0
+    let mut v = value;
+    v ^= v >> 4;
+    v ^= v >> 2;
+    v ^= v >> 1;
+    v & 1 != 0
 }
 
 impl Identifiable for Cpu {
-
     fn id(&self) -> u32 { 1 }
-
 }
 
 impl Device for Cpu {
@@ -583,7 +579,7 @@ impl Cpu {
 
     /// Return current PC value and inc or dec it for the next read
     fn advance_pc(&self, offset: i8) -> u16 {
-        let pc = self.rp(RegPair::PC).get(); // read current PC
+        let pc = self.rp(RegPair::PC).get();
         self.rp(RegPair::PC).set(pc.wrapping_add(offset as u16));
         return pc;
     }

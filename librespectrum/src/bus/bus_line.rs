@@ -55,7 +55,6 @@ impl<T: Copy> BusLine<T> {
             Some((owner, _)) if owner == device.id() => self.state.set(None),
             None | Some((_, _)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
         }
-
     }
 
 }

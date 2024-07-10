@@ -243,11 +243,11 @@ impl Instruction {
             Reg::IYH => String::from("IYH"),
             Reg::IYL => String::from("IYL"),
             Reg::AtIX => {
-                let displacement = self.displacement.unwrap();
+                let displacement = self.expect_displacement();
                 format!("(IX{})", self.format_number_with_sign(displacement as i32))
             },
             Reg::AtIY => {
-                let displacement = self.displacement.unwrap();
+                let displacement = self.expect_displacement();
                 format!("(IY{})", self.format_number_with_sign(displacement as i32))
             },
             other => unreachable!("{:?}", other)
@@ -276,9 +276,7 @@ impl Instruction {
     }
 
     fn format_addr_displacement(&self) -> String {
-        let displacement = self.displacement.unwrap() as i32 + 2;
-        // let addr = (self.addr as i32 + displacement) as u16;
-        // format!("{}", self.format_word(addr))
+        let displacement = self.expect_displacement() as i32 + 2;
         format!("${}", self.format_number_with_sign(displacement))
     }
 

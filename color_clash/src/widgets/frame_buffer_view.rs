@@ -1,6 +1,6 @@
 use druid::{
     piet::{ImageFormat, InterpolationMode, StrokeStyle},
-    kurbo::{Line, Rect},
+    kurbo::Rect,
     widget::prelude::*,
     Event, MouseButton, Point, Color,
 };
@@ -40,7 +40,7 @@ impl Widget<FrameBuffer> for FrameBufferView {
                 let (x, y) = self.widget2fb_coords(e.pos);
                 data.pixels[data.width * y + x] = true;
             },
-            Event::MouseMove(e) => {},
+            Event::MouseMove(_e) => {},
             _ => {}
         }
     }

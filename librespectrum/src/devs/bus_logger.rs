@@ -27,17 +27,13 @@ pub struct BusLogger {
 }
 
 impl BusLogger {
-
     pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
         Self { bus, clock, readings: RefCell::new(RingBuff::new()) }
     }
-
 }
 
 impl Identifiable for BusLogger {
-
     fn id(&self) -> u32 { 10 }
-
 }
 
 impl Device for BusLogger {

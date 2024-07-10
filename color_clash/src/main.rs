@@ -61,7 +61,7 @@ fn main() -> Result<(), PlatformError> {
     };
 
     let main_window = WindowDesc::new(ui_builder())
-        // .menu(make_menu)
+        .menu(make_menu)
         .title("Color Clash");
 
     AppLauncher::with_window(main_window)
@@ -120,7 +120,7 @@ fn ui_builder() -> impl Widget<AppState> {
 
 }
 
-fn make_menu(_: Option<WindowId>, state: &AppState, _: &Env) -> Menu<AppState> {
+fn make_menu(_: Option<WindowId>, _state: &AppState, _: &Env) -> Menu<AppState> {
     let mut base = Menu::empty();
     #[cfg(target_os = "macos")]
     {

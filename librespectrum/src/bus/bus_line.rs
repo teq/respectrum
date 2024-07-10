@@ -52,8 +52,9 @@ impl<T: Copy> BusLine<T> {
     /// Release signal line
     pub fn release<U: Identifiable>(&self, device: &U) {
         match self.state.get() {
+            None => (),
             Some((owner, _)) if owner == device.id() => self.state.set(None),
-            None | Some((_, _)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
+            Some((_, _)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
         }
     }
 

@@ -8,6 +8,7 @@ bitflags! {
         const IORQ = 1 << 1;
         const RD   = 1 << 2;
         const WR   = 1 << 3;
+        const RFSH = 1 << 4;
     }
 }
 
@@ -16,9 +17,8 @@ bitflags! {
     pub struct Outs : u8 {
         const NONE  = 0;
         const M1    = 1 << 0;
-        const RFSH  = 1 << 1;
-        const HALT  = 1 << 2;
-        const BUSAK = 1 << 3;
+        const HALT  = 1 << 1;
+        const BUSAK = 1 << 2;
     }
 }
 

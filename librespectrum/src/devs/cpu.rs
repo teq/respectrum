@@ -545,7 +545,7 @@ impl Cpu {
     }
 
     /// Set CPU flags
-    pub fn set_flags(&self, flags: Flags ) {
+    pub fn set_flags(&self, flags: Flags) {
         self.rg(Reg::F).set(flags.bits())
     }
 
@@ -584,7 +584,7 @@ impl Cpu {
         return pc;
     }
 
-    /// Probe WAIT signal and wait if it's set
+    /// Probe WAIT signal and wait while it's set
     fn probe_wait<'a>(&'a self) -> impl Task<()> + 'a {
         #[coroutine] move || {
             while self.bus.wait.probe().unwrap_or(false) {
@@ -593,30 +593,49 @@ impl Cpu {
         }
     }
 
+    /// Probe BUSRQ signal and set address, data and ctrl outputs
+    /// to high impedance state while it's set
+    fn probe_busrq<'a>(&'a self) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            yield self.clock.rising(1);
+            self.bus.data.release(self);
+            self.bus.addr.release(self);
+            self.bus.ctrl.release(self);
+            self.bus.outs.drive(self, Outs::BUSAK);
+            while self.bus.busrq.probe().unwrap_or(false) {
+                yield self.clock.rising(1); // wait 1 t-cycle
+            }
+        }
+    }
+
     /// Instruction opcode fetch m-cycle
     /// (usually referred to as M1). Takes 4 t-cycles.
     fn opcode_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // *** T1 rising ***
+            yield self.clock.rising(1); // T1 rising
+            self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::M1);
-            yield self.clock.falling(1); // *** T1 falling ***
+            yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
-            yield self.clock.falling(1); // *** T2 falling ***
+            yield self.clock.falling(1); // T2 falling
             yield_from!(self.probe_wait());
-            yield self.clock.rising(1); // *** T3 rising ***
+            yield self.clock.rising(1); // T3 rising
             let byte = self.bus.data.expect();
-            self.bus.addr.drive(self, self.rp(RegPair::IR).get());
-            self.bus.ctrl.drive(self, Ctrl::NONE); // clear MREQ & RD
-            self.bus.outs.drive(self, Outs::RFSH);
-            yield self.clock.falling(1); // *** T3 falling ***
-            self.bus.ctrl.drive(self, Ctrl::MREQ);
-            yield self.clock.falling(1); // *** T4 falling ***
-            self.bus.ctrl.drive(self, Ctrl::NONE); // clear MREQ
             // Increment R (lower 7 bits)
             let r = self.rg(Reg::R).get();
             self.rg(Reg::R).set(((r + 1) & 0x7f) | (r & 0x80));
+            self.bus.addr.drive(self, self.rp(RegPair::IR).get());
+            self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ & RD
+            self.bus.outs.drive(self, Outs::NONE); // clears M1
+            yield self.clock.falling(1); // T3 falling
+            self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
+            yield self.clock.rising(1); // T4 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
+            yield self.clock.falling(1); // T4 falling
+            self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ
+            if busrq { yield_from!(self.probe_busrq()); }
             return byte;
         }
     }
@@ -625,6 +644,7 @@ impl Cpu {
     fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
+            self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
@@ -632,17 +652,21 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
             yield_from!(self.probe_wait());
+            yield self.clock.rising(1); // T3 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
+            if busrq { yield_from!(self.probe_busrq()); }
             return byte;
         }
     }
 
-    /// Memory write m-cycle. Takes 3 t-cycles
+    /// Memory write m-cycle. Takes 3 t-cycles.
     fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         #[coroutine] move || {
             yield self.clock.rising(1); // T1 rising
+            self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.outs.drive(self, Outs::NONE);
@@ -652,9 +676,55 @@ impl Cpu {
             yield self.clock.falling(1); // T2 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::WR);
             yield_from!(self.probe_wait());
+            yield self.clock.rising(1); // T3 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
+            if busrq { yield_from!(self.probe_busrq()); }
+        }
+    }
+
+    /// IO read m-cycle
+    fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
+        #[coroutine] move || {
+            yield self.clock.rising(1); // T1 rising
             self.bus.data.release(self);
+            self.bus.addr.drive(self, addr);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
+            self.bus.outs.drive(self, Outs::NONE);
+            yield self.clock.rising(1); // T2 rising
+            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
+            yield self.clock.falling(2); // TW falling
+            yield_from!(self.probe_wait());
+            yield self.clock.rising(1); // T3 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
+            yield self.clock.falling(1); // T3 falling
+            let byte = self.bus.data.expect();
+            self.bus.ctrl.drive(self, Ctrl::NONE);
+            if busrq { yield_from!(self.probe_busrq()); }
+            return byte;
+        }
+    }
+
+    /// IO write m-cycle
+    fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            yield self.clock.rising(1); // T1 rising
+            self.bus.data.release(self);
+            self.bus.addr.drive(self, addr);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
+            self.bus.outs.drive(self, Outs::NONE);
+            yield self.clock.falling(1); // T1 falling
+            self.bus.data.drive(self, val);
+            yield self.clock.rising(1); // T2 rising
+            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
+            yield self.clock.falling(2); // TW falling
+            yield_from!(self.probe_wait());
+            yield self.clock.rising(1); // T3 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
+            yield self.clock.falling(1); // T3 falling
+            self.bus.ctrl.drive(self, Ctrl::NONE);
+            if busrq { yield_from!(self.probe_busrq()); }
         }
     }
 
@@ -696,43 +766,6 @@ impl Cpu {
                 yield self.clock.rising(5);
                 self.advance_pc(-2); // rewind PC 2 bytes back
             }
-        }
-    }
-
-    /// IO read m-cycle
-    fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
-        #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
-            self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
-            yield self.clock.rising(1); // T2 rising
-            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
-            yield self.clock.falling(2); // TW falling
-            yield_from!(self.probe_wait());
-            yield self.clock.falling(1); // T3 falling
-            let byte = self.bus.data.expect();
-            self.bus.ctrl.drive(self, Ctrl::NONE);
-            return byte;
-        }
-    }
-
-    /// IO write m-cycle
-    fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
-        #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
-            self.bus.addr.drive(self, addr);
-            self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
-            yield self.clock.falling(1); // T1 falling
-            self.bus.data.drive(self, val);
-            yield self.clock.rising(1); // T2 rising
-            self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
-            yield self.clock.falling(2); // TW falling
-            yield_from!(self.probe_wait());
-            yield self.clock.falling(1); // T3 falling
-            self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.data.release(self);
         }
     }
 

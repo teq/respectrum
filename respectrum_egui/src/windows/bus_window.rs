@@ -37,12 +37,12 @@ impl SubWindow for BusWindow {
                     header.col(|ui| { ui.label("WR"); });
                     header.col(|ui| { ui.label("MREQ"); });
                     header.col(|ui| { ui.label("IORQ"); });
+                    header.col(|ui| { ui.label("RFSH"); });
                     header.col(|ui| { ui.label("M1"); });
                     header.col(|ui| { ui.label("BUSRQ"); });
                     header.col(|ui| { ui.label("BUSAK"); });
                     header.col(|ui| { ui.label("WAIT"); });
                     header.col(|ui| { ui.label("HALT"); });
-                    header.col(|ui| { ui.label("RFSH"); });
                     header.col(|ui| { ui.label("INT"); });
                     header.col(|ui| { ui.label("NMI"); });
                     header.col(|ui| { ui.label("RESET"); });
@@ -58,12 +58,12 @@ impl SubWindow for BusWindow {
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::WR) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::MREQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::IORQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
+                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::RFSH) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::M1) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(busrq) = reading.busrq { ui.label(if busrq { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::BUSAK) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(wait) = reading.wait { ui.label(if wait { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::HALT) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::RFSH) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(int) = reading.int { ui.label(if int { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(nmi) = reading.nmi { ui.label(if nmi { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(reset) = reading.reset { ui.label(if reset { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });

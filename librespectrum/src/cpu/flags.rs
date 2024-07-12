@@ -29,3 +29,20 @@ impl From<u8> for Flags {
         unsafe { Flags::from_bits_unchecked(value) }
     }
 }
+
+impl Flags {
+    pub fn set_zs_flags(&mut self, value: u8) -> &mut Self {
+        self.set(Flags::Z, value == 0);
+        self.set(Flags::S, (value as i8) < 0);
+        self
+    }
+
+    pub fn set_parity_flag(&mut self, value: u8) -> &mut Self {
+        let mut value = value;
+        value ^= value >> 4;
+        value ^= value >> 2;
+        value ^= value >> 1;
+        self.set(Flags::P, value & 1 != 0);
+        self
+    }
+}

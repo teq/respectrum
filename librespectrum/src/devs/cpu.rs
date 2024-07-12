@@ -41,14 +41,6 @@ pub struct Cpu {
     clock: Rc<Clock>,
 }
 
-fn parity(value: u8) -> bool {
-    let mut v = value;
-    v ^= v >> 4;
-    v ^= v >> 2;
-    v ^= v >> 1;
-    v & 1 != 0
-}
-
 impl Identifiable for Cpu {
     fn id(&self) -> u32 { 1 }
 }
@@ -115,9 +107,8 @@ impl Device for Cpu {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
+                        flags.set_zs_flags(value);
                         flags.set(Flags::P, self.iff2.get());
-                        flags.set(Flags::Z, value == 0);
-                        flags.set(Flags::S, (value as i8) < 0);
                         self.set_flags(flags);
                     },
                     Token::LD_RG_RG(dst, src) => {
@@ -253,17 +244,16 @@ impl Device for Cpu {
                                     AluOp::OR => lhs | rhs,
                                     _ => unreachable!()
                                 };
-                                flags.set(Flags::P, parity(result));
+                                flags.set_parity_flag(result);
                                 result
                             },
                         };
-                        flags.set(Flags::Z, result == 0);
-                        flags.set(Flags::S, (result as i8) < 0);
                         flags |= Flags::from(result) & Flags::XY;
+                        flags.set_zs_flags(result);
+                        self.set_flags(flags);
                         if op != AluOp::CP {
                             self.rg(Reg::A).set(result);
                         }
-                        self.set_flags(flags);
                     },
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
                         let value = self.rg(reg).get();
@@ -278,11 +268,10 @@ impl Device for Cpu {
                             flags.set(Flags::H, (value << 4).overflowing_sub(1 << 4).1);
                             value.wrapping_sub(1)
                         };
-                        flags.set(Flags::Z, result == 0);
-                        flags.set(Flags::S, (result as i8) < 0);
                         flags |= Flags::from(result) & Flags::XY;
-                        self.rg(Reg::A).set(result);
+                        flags.set_zs_flags(result);
                         self.set_flags(flags);
+                        self.rg(Reg::A).set(result);
                     },
 
                     // General-Purpose Arithmetic and CPU Control
@@ -299,39 +288,36 @@ impl Device for Cpu {
                             value.overflowing_add(correction)
                         };
                         flags.set(Flags::C, carry);
-                        flags.set(Flags::P, parity(result));
                         flags.set(Flags::H, if flags.contains(Flags::N) {
                             (value << 4).overflowing_sub(correction << 4).1
                         } else {
                             (value << 4).overflowing_add(correction << 4).1
                         });
-                        flags.set(Flags::Z, result == 0);
-                        flags.set(Flags::S, (result as i8) < 0);
                         flags |= Flags::from(result) & Flags::XY;
-                        self.rg(Reg::A).set(result);
+                        flags.set_zs_flags(result);
+                        flags.set_parity_flag(result);
                         self.set_flags(flags);
+                        self.rg(Reg::A).set(result);
                     },
                     Token::CPL => {
-                        let value = self.rg(Reg::A).get();
-                        let mut flags = (self.get_flags() & !Flags::XY) | Flags::H | Flags::N;
-                        let result = !value;
-                        flags |= Flags::from(result) & Flags::XY;
+                        let result = !self.rg(Reg::A).get();
                         self.rg(Reg::A).set(result);
-                        self.set_flags(flags);
+                        self.set_flags(
+                            (self.get_flags() & !Flags::XY) |
+                            (Flags::from(result) & Flags::XY) |
+                            Flags::H | Flags::N
+                        );
                     },
                     Token::NEG => {
                         let value = self.rg(Reg::A).get();
-
                         let (result, carry) = (0 as u8).overflowing_sub(value);
-                        let mut flags = (Flags::from(result) & Flags::XY) | Flags::N;
+                        let mut flags = Flags::N | (Flags::from(result) & Flags::XY);
                         flags.set(Flags::C, carry);
                         flags.set(Flags::P, (0 as i8).overflowing_sub(value as i8).1);
                         flags.set(Flags::H, (0 as u8).overflowing_sub(value << 4).1);
-                        flags.set(Flags::Z, result == 0);
-                        flags.set(Flags::S, (result as i8) < 0);
-
-                        self.rg(Reg::A).set(value);
+                        flags.set_zs_flags(result);
                         self.set_flags(flags);
+                        self.rg(Reg::A).set(value);
                     },
                     Token::CCF => {
                         self.set_flags(self.get_flags() ^ Flags::C);
@@ -733,20 +719,21 @@ impl Cpu {
         #[coroutine] move || {
             let src = self.rp(RegPair::HL).get();
             let dst = self.rp(RegPair::DE).get();
-            let counter = self.rp(RegPair::BC).get().wrapping_sub(1);
-            let value = yield_from!(self.memory_read(src));
-            yield_from!(self.memory_write(dst, value));
+            let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
+            let val = yield_from!(self.memory_read(src));
+            yield_from!(self.memory_write(dst, val));
             yield self.clock.rising(2); // complement MW to 5 t-cycles
             self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
             self.rp(RegPair::DE).set(dst.wrapping_add(increment as u16));
-            self.rp(RegPair::BC).set(counter);
-            let summ = self.rg(Reg::A).get().wrapping_add(value);
-            let mut flags = self.get_flags() & (Flags::C | Flags::Z | Flags::S);
-            flags.set(Flags::P, counter != 0);
+            self.rp(RegPair::BC).set(ctr);
+            let summ = self.rg(Reg::A).get().wrapping_add(val);
+            let mut flags = self.get_flags() & Flags::C;
+            flags.set_zs_flags(summ);
+            flags.set(Flags::P, ctr != 0);
             flags.set(Flags::Y, summ & (1 << 1) != 0);
             flags.set(Flags::X, summ & (1 << 3) != 0);
             self.set_flags(flags);
-            if repeat && counter != 0 {
+            if repeat && ctr != 0 {
                 yield self.clock.rising(5);
                 self.advance_pc(-2); // rewind PC 2 bytes back
             }
@@ -756,13 +743,14 @@ impl Cpu {
     /// Compare A against (HL), inc or dec HL, dec BC
     fn memory_cmp<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
         #[coroutine] move || {
-            let ptr = self.rp(RegPair::HL).get();
-            let counter = self.rp(RegPair::BC).get().wrapping_sub(1);
-            let value = yield_from!(self.memory_read(ptr));
-            self.rp(RegPair::HL).set(ptr.wrapping_add(increment as u16));
+            let src = self.rp(RegPair::HL).get();
+            let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
+            let val = yield_from!(self.memory_read(src));
+            self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
             yield self.clock.rising(5);
-            self.rp(RegPair::BC).set(counter);
-            if repeat && counter != 0 {
+            self.rp(RegPair::BC).set(ctr);
+
+            if repeat && ctr != 0 {
                 yield self.clock.rising(5);
                 self.advance_pc(-2); // rewind PC 2 bytes back
             }

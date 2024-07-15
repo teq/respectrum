@@ -2,6 +2,7 @@
 #![feature(never_type)]
 #![feature(trait_alias)]
 #![feature(let_chains)]
+#![feature(cell_update)]
 
 #[macro_use]
 extern crate bitflags;

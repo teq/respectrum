@@ -342,7 +342,15 @@ impl Device for Cpu {
                     // 16-Bit Arithmetic
 
                     Token::ADD_RP_RP(dst, src) => {
-                        unimplemented!();
+                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        let lhs = self.rp(dst).get();
+                        let rhs = self.rp(src).get();
+                        let (result, carry) = lhs.overflowing_add(rhs);
+                        let mut flags = self.get_flags() & !Flags::N;
+                        flags.set(Flags::C, carry);
+                        flags.set(Flags::H, (lhs << 4).overflowing_add(rhs << 4).1);
+                        self.rp(dst).set(result);
+                        self.set_flags(flags);
                     },
                     Token::ADC_HL_RP(rpair) => {
                         unimplemented!();
@@ -351,10 +359,12 @@ impl Device for Cpu {
                         unimplemented!();
                     },
                     Token::INC_RP(rpair) => {
-                        unimplemented!();
+                        yield self.clock.rising(2); // complement M-cycle to 6 t-cycles
+                        self.rp(rpair).update(|rp| rp.wrapping_add(1));
                     },
                     Token::DEC_RP(rpair) => {
-                        unimplemented!();
+                        yield self.clock.rising(2); // complement M-cycle to 6 t-cycles
+                        self.rp(rpair).update(|rp| rp.wrapping_sub(1));
                     },
 
                     // Rotate and Shift

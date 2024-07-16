@@ -31,9 +31,15 @@ impl From<u8> for Flags {
 }
 
 impl Flags {
-    pub fn set_zs_flags(&mut self, value: u8) -> &mut Self {
+    pub fn set_zs_flags_u8(&mut self, value: u8) -> &mut Self {
         self.set(Flags::Z, value == 0);
-        self.set(Flags::S, (value as i8) < 0);
+        self.set(Flags::S, value.cast_signed() < 0);
+        self
+    }
+
+    pub fn set_zs_flags_u16(&mut self, value: u16) -> &mut Self {
+        self.set(Flags::Z, value == 0);
+        self.set(Flags::S, value.cast_signed() < 0);
         self
     }
 

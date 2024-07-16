@@ -107,7 +107,7 @@ impl Device for Cpu {
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
-                        flags.set_zs_flags(value);
+                        flags.set_zs_flags_u8(value);
                         flags.set(Flags::P, self.iff2.get());
                         self.set_flags(flags);
                     },
@@ -249,7 +249,7 @@ impl Device for Cpu {
                             },
                         };
                         flags |= Flags::from(result) & Flags::XY;
-                        flags.set_zs_flags(result);
+                        flags.set_zs_flags_u8(result);
                         self.set_flags(flags);
                         if op != AluOp::CP {
                             self.rg(Reg::A).set(result);
@@ -269,7 +269,7 @@ impl Device for Cpu {
                             value.wrapping_sub(1)
                         };
                         flags |= Flags::from(result) & Flags::XY;
-                        flags.set_zs_flags(result);
+                        flags.set_zs_flags_u8(result);
                         self.set_flags(flags);
                         self.rg(Reg::A).set(result);
                     },
@@ -294,7 +294,7 @@ impl Device for Cpu {
                             (value << 4).overflowing_add(correction << 4).1
                         });
                         flags |= Flags::from(result) & Flags::XY;
-                        flags.set_zs_flags(result);
+                        flags.set_zs_flags_u8(result);
                         flags.set_parity_flag(result);
                         self.set_flags(flags);
                         self.rg(Reg::A).set(result);
@@ -315,7 +315,7 @@ impl Device for Cpu {
                         flags.set(Flags::C, carry);
                         flags.set(Flags::P, (0 as i8).overflowing_sub(value as i8).1);
                         flags.set(Flags::H, (0 as u8).overflowing_sub(value << 4).1);
-                        flags.set_zs_flags(result);
+                        flags.set_zs_flags_u8(result);
                         self.set_flags(flags);
                         self.rg(Reg::A).set(value);
                     },
@@ -353,10 +353,38 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::ADC_HL_RP(rpair) => {
-                        unimplemented!();
+                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        let lhs = self.rp(RegPair::HL).get();
+                        let rhs = self.rp(rpair).get();
+                        let mut flags = Flags::NONE;
+                        let (result, carry) = if flags.contains(Flags::C) {
+                            lhs.overflowing_add(rhs)
+                        } else {
+                            lhs.overflowing_add(rhs.wrapping_add(1))
+                        };
+                        flags.set_zs_flags_u16(result);
+                        flags.set(Flags::C, carry);
+                        flags.set(Flags::P, (lhs as i16).overflowing_add(rhs as i16).1);
+                        flags.set(Flags::H, (lhs << 4).overflowing_add(rhs << 4).1);
+                        self.rp(RegPair::HL).set(result);
+                        self.set_flags(flags);
                     },
                     Token::SBC_HL_RP(rpair) => {
-                        unimplemented!();
+                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        let lhs = self.rp(RegPair::HL).get();
+                        let rhs = self.rp(rpair).get();
+                        let mut flags = Flags::NONE;
+                        let (result, carry) = if flags.contains(Flags::C) {
+                            lhs.overflowing_sub(rhs)
+                        } else {
+                            lhs.overflowing_sub(rhs.wrapping_sub(1))
+                        };
+                        flags.set_zs_flags_u16(result);
+                        flags.set(Flags::C, carry);
+                        flags.set(Flags::P, (lhs as i16).overflowing_sub(rhs as i16).1);
+                        flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
+                        self.rp(RegPair::HL).set(result);
+                        self.set_flags(flags);
                     },
                     Token::INC_RP(rpair) => {
                         yield self.clock.rising(2); // complement M-cycle to 6 t-cycles
@@ -717,7 +745,7 @@ impl Cpu {
             self.rp(RegPair::BC).set(ctr);
             let mut n = lhs.wrapping_sub(rhs);
             let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags(n);
+            flags.set_zs_flags_u8(n);
             flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
             if flags.contains(Flags::H) { n = n.wrapping_sub(1); }
             flags.set(Flags::P, ctr != 0);
@@ -788,7 +816,7 @@ impl Cpu {
             self.rp(RegPair::HL).set(dst.wrapping_add(increment as u16));
             self.rg(Reg::B).set(ctr);
             let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags(ctr);
+            flags.set_zs_flags_u8(ctr);
             self.set_flags(flags);
             if repeat && !flags.contains(Flags::Z) {
                 yield self.clock.rising(5);
@@ -810,7 +838,7 @@ impl Cpu {
             self.rp(RegPair::HL).set(dst.wrapping_add(increment as u16));
             self.rg(Reg::B).set(ctr);
             let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags(ctr);
+            flags.set_zs_flags_u8(ctr);
             self.set_flags(flags);
             if repeat && !flags.contains(Flags::Z) {
                 yield self.clock.rising(5);

@@ -55,13 +55,7 @@ pub enum Token {
     DEC_RP(RegPair),
 
     // Rotate and Shift
-    RLCA,
-    RLA,
-    RRCA,
-    RRA,
     SHOP(ShiftOp, Reg),
-    RLD,
-    RRD,
     SHOPLD(ShiftOp, Reg, Reg), // undocumented
 
     // Bit Set, Reset and Test
@@ -214,6 +208,7 @@ impl From<u8> for AluOp {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ShiftOp {
     RLC = 0, RRC, RL, RR, SLA, SRA, SLL, SRL, // DO NOT reorder
+    RLCA, RRCA, RLA, RRA, RLD, RRD
 }
 
 impl From<u8> for ShiftOp {

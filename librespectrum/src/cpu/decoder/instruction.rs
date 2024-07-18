@@ -102,10 +102,6 @@ impl Instruction {
             Token::DEC_RP(rpair) => format!("DEC {}", self.format_regpair(rpair)),
 
             // Rotate and Shift
-            Token::RLCA => String::from("RLCA"),
-            Token::RLA => String::from("RLA"),
-            Token::RRCA => String::from("RRCA"),
-            Token::RRA => String::from("RRA"),
             Token::SHOP(op, reg) => match op {
                 ShiftOp::RLC => format!("RLC {}", self.format_reg(reg)),
                 ShiftOp::RRC => format!("RRC {}", self.format_reg(reg)),
@@ -115,9 +111,13 @@ impl Instruction {
                 ShiftOp::SRA => format!("SRA {}", self.format_reg(reg)),
                 ShiftOp::SLL => format!("SLL {}", self.format_reg(reg)),
                 ShiftOp::SRL => format!("SRL {}", self.format_reg(reg)),
+                ShiftOp::RLCA => String::from("RLCA"),
+                ShiftOp::RRCA => String::from("RRCA"),
+                ShiftOp::RLA => String::from("RLA"),
+                ShiftOp::RRA => String::from("RRA"),
+                ShiftOp::RLD => String::from("RLD"),
+                ShiftOp::RRD => String::from("RRD"),
             },
-            Token::RLD => String::from("RLD"),
-            Token::RRD => String::from("RRD"),
             Token::SHOPLD(op, reg, dst) => match op {
                 ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg), self.format_reg(dst)),
                 ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg), self.format_reg(dst)),
@@ -127,6 +127,7 @@ impl Instruction {
                 ShiftOp::SRA => format!("SRA {},{}", self.format_reg(reg), self.format_reg(dst)),
                 ShiftOp::SLL => format!("SLL {},{}", self.format_reg(reg), self.format_reg(dst)),
                 ShiftOp::SRL => format!("SRL {},{}", self.format_reg(reg), self.format_reg(dst)),
+                _ => unreachable!()
             },
 
             // Bit Set, Reset and Test

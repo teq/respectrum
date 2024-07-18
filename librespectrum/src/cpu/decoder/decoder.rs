@@ -167,8 +167,8 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 (1, 1, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::R, Reg::A), upnext: TokenType::Opcode },
                 (1, 2, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::I), upnext: TokenType::Opcode },
                 (1, 3, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::R), upnext: TokenType::Opcode },
-                (1, 4, 7) => TokenDecodeResult { token: Token::RRD, upnext: TokenType::Opcode },
-                (1, 5, 7) => TokenDecodeResult { token: Token::RLD, upnext: TokenType::Opcode },
+                (1, 4, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRD, Reg::A), upnext: TokenType::Opcode },
+                (1, 5, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLD, Reg::A), upnext: TokenType::Opcode },
                 (1, _, 7) => TokenDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
                 (1, _, _) => unreachable!(),
                 (2, y, z) if z <= 3 && y >= 4 => TokenDecodeResult {
@@ -327,10 +327,10 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 },
 
                 // x=0, z=7
-                (0, 0, 7) => TokenDecodeResult { token: Token::RLCA, upnext: TokenType::Opcode },
-                (0, 1, 7) => TokenDecodeResult { token: Token::RRCA, upnext: TokenType::Opcode },
-                (0, 2, 7) => TokenDecodeResult { token: Token::RLA, upnext: TokenType::Opcode },
-                (0, 3, 7) => TokenDecodeResult { token: Token::RRA, upnext: TokenType::Opcode },
+                (0, 0, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLCA, Reg::A), upnext: TokenType::Opcode },
+                (0, 1, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRCA, Reg::A), upnext: TokenType::Opcode },
+                (0, 2, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLA, Reg::A), upnext: TokenType::Opcode },
+                (0, 3, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRA, Reg::A), upnext: TokenType::Opcode },
                 (0, 4, 7) => TokenDecodeResult { token: Token::DAA, upnext: TokenType::Opcode },
                 (0, 5, 7) => TokenDecodeResult { token: Token::CPL, upnext: TokenType::Opcode },
                 (0, 6, 7) => TokenDecodeResult { token: Token::SCF, upnext: TokenType::Opcode },

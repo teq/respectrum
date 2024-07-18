@@ -4,6 +4,7 @@
 #![feature(let_chains)]
 #![feature(cell_update)]
 #![feature(integer_sign_cast)]
+#![feature(bigint_helper_methods)]
 
 #[macro_use]
 extern crate bitflags;

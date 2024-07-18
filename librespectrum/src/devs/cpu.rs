@@ -9,7 +9,7 @@ use crate::{
     mkword, spword, yield_from,
     bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl, Outs},
     cpu::{
-        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp},
+        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp},
         decoder::instruction_decoder,
         Flags,
     },
@@ -215,11 +215,7 @@ impl Device for Cpu {
                         let mut flags = self.get_flags() & Flags::C;
                         let result = match op {
                             AluOp::ADD | AluOp::ADC => {
-                                let (result, carry) = if op == AluOp::ADC && flags.contains(Flags::C) {
-                                    lhs.overflowing_add(rhs.wrapping_add(1))
-                                } else {
-                                    lhs.overflowing_add(rhs)
-                                };
+                                let (result, carry) = lhs.carrying_add(rhs, op == AluOp::ADC && flags.contains(Flags::C));
                                 flags.set(Flags::C, carry);
                                 flags.set(Flags::P, (lhs as i8).overflowing_add(rhs as i8).1);
                                 flags.set(Flags::H, (lhs << 4).overflowing_add(rhs << 4).1);
@@ -227,11 +223,7 @@ impl Device for Cpu {
                             },
                             AluOp::CP | AluOp::SUB | AluOp::SBC => {
                                 flags.insert(Flags::N);
-                                let (result, carry) = if op == AluOp::SBC && flags.contains(Flags::C) {
-                                    lhs.overflowing_sub(rhs.wrapping_sub(1))
-                                } else {
-                                    lhs.overflowing_sub(rhs)
-                                };
+                                let (result, carry) = lhs.borrowing_sub(rhs, op == AluOp::SBC && flags.contains(Flags::C));
                                 flags.set(Flags::C, carry);
                                 flags.set(Flags::P, (lhs as i8).overflowing_sub(rhs as i8).1);
                                 flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
@@ -357,11 +349,7 @@ impl Device for Cpu {
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
                         let mut flags = Flags::NONE;
-                        let (result, carry) = if flags.contains(Flags::C) {
-                            lhs.overflowing_add(rhs)
-                        } else {
-                            lhs.overflowing_add(rhs.wrapping_add(1))
-                        };
+                        let (result, carry) = lhs.carrying_add(rhs, flags.contains(Flags::C));
                         flags.set_zs_flags_u16(result);
                         flags.set(Flags::C, carry);
                         flags.set(Flags::P, (lhs as i16).overflowing_add(rhs as i16).1);
@@ -374,11 +362,7 @@ impl Device for Cpu {
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
                         let mut flags = Flags::NONE;
-                        let (result, carry) = if flags.contains(Flags::C) {
-                            lhs.overflowing_sub(rhs)
-                        } else {
-                            lhs.overflowing_sub(rhs.wrapping_sub(1))
-                        };
+                        let (result, carry) = lhs.borrowing_sub(rhs, flags.contains(Flags::C));
                         flags.set_zs_flags_u16(result);
                         flags.set(Flags::C, carry);
                         flags.set(Flags::P, (lhs as i16).overflowing_sub(rhs as i16).1);
@@ -397,26 +381,75 @@ impl Device for Cpu {
 
                     // Rotate and Shift
 
-                    Token::RLCA => {
-                        unimplemented!();
-                    },
-                    Token::RLA => {
-                        unimplemented!();
-                    },
-                    Token::RRCA => {
-                        unimplemented!();
-                    },
-                    Token::RRA => {
-                        unimplemented!();
-                    },
                     Token::SHOP(op, reg) => {
-                        unimplemented!();
-                    },
-                    Token::RLD => {
-                        unimplemented!();
-                    },
-                    Token::RRD => {
-                        unimplemented!();
+                        let val = self.rg(reg).get();
+                        let mut flags = self.get_flags() & !(Flags::H | Flags::N);
+                        let result = match op {
+                            ShiftOp::RLC => {
+                                let val = val.rotate_left(1);
+                                flags.set_zs_flags_u8(val);
+                                flags.set_parity_flag(val);
+                                flags.set(Flags::C, val & 0x1 != 0);
+                                val
+                            },
+                            ShiftOp::RRC => {
+                                let val = val.rotate_right(1);
+                                flags.set_zs_flags_u8(val);
+                                flags.set_parity_flag(val);
+                                flags.set(Flags::C, val & 0x80 != 0);
+                                val
+                            },
+                            ShiftOp::RL => {
+                                let mut val = val.rotate_left(1);
+                                let carry = val & 0x1 != 0; val &= !0x1;
+                                if flags.contains(Flags::C) { val |= 0x1; }
+                                flags.set_zs_flags_u8(val);
+                                flags.set_parity_flag(val);
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::RR => {
+                                let mut val = val.rotate_right(1);
+                                let carry = val & 0x80 != 0; val &= !0x80;
+                                if flags.contains(Flags::C) { val |= 0x80; }
+                                flags.set_zs_flags_u8(val);
+                                flags.set_parity_flag(val);
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::SLA => todo!(),
+                            ShiftOp::SRA => todo!(),
+                            ShiftOp::SLL => todo!(),
+                            ShiftOp::SRL => todo!(),
+                            ShiftOp::RLCA => {
+                                let val = val.rotate_left(1);
+                                flags.set(Flags::C, val & 0x1 != 0);
+                                val
+                            },
+                            ShiftOp::RRCA => {
+                                let val = val.rotate_right(1);
+                                flags.set(Flags::C, val & 0x80 != 0);
+                                val
+                            },
+                            ShiftOp::RLA => {
+                                let mut val = val.rotate_left(1);
+                                let carry = val & 0x1 != 0; val &= !0x1;
+                                if flags.contains(Flags::C) { val |= 0x1; }
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::RRA => {
+                                let mut val = val.rotate_right(1);
+                                let carry = val & 0x80 != 0; val &= !0x80;
+                                if flags.contains(Flags::C) { val |= 0x80; }
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::RLD => todo!(),
+                            ShiftOp::RRD => todo!(),
+                        };
+                        self.rg(Reg::A).set(result);
+                        self.set_flags(flags);
                     },
                     Token::SHOPLD(op, reg, dst) => {
                         unimplemented!();

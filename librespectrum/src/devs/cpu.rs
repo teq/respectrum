@@ -382,20 +382,35 @@ impl Device for Cpu {
                     // Rotate and Shift
 
                     Token::SHOP(op, reg) => {
-                        let val = self.rg(reg).get();
+                        let val = match reg {
+                            Reg::B | Reg::C | Reg::D | Reg::E | Reg::H | Reg::L | Reg::A => {
+                                self.rg(reg).get()
+                            },
+                            Reg::AtHL => {
+                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                                yield_from!(self.memory_read(self.rp(RegPair::HL).get()))
+                            },
+                            Reg::AtIX | Reg::AtIY => {
+                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
+                                let val = yield_from!(self.memory_read(
+                                    self.idx_addr(reg, instruction.expect_displacement())
+                                ));
+                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
+                                val
+                            },
+                            _ => unreachable!(),
+                        };
+
                         let mut flags = self.get_flags() & !(Flags::H | Flags::N);
+
                         let result = match op {
                             ShiftOp::RLC => {
                                 let val = val.rotate_left(1);
-                                flags.set_zs_flags_u8(val);
-                                flags.set_parity_flag(val);
                                 flags.set(Flags::C, val & 0x1 != 0);
                                 val
                             },
                             ShiftOp::RRC => {
                                 let val = val.rotate_right(1);
-                                flags.set_zs_flags_u8(val);
-                                flags.set_parity_flag(val);
                                 flags.set(Flags::C, val & 0x80 != 0);
                                 val
                             },
@@ -403,8 +418,6 @@ impl Device for Cpu {
                                 let mut val = val.rotate_left(1);
                                 let carry = val & 0x1 != 0; val &= !0x1;
                                 if flags.contains(Flags::C) { val |= 0x1; }
-                                flags.set_zs_flags_u8(val);
-                                flags.set_parity_flag(val);
                                 flags.set(Flags::C, carry);
                                 val
                             },
@@ -412,15 +425,34 @@ impl Device for Cpu {
                                 let mut val = val.rotate_right(1);
                                 let carry = val & 0x80 != 0; val &= !0x80;
                                 if flags.contains(Flags::C) { val |= 0x80; }
-                                flags.set_zs_flags_u8(val);
-                                flags.set_parity_flag(val);
                                 flags.set(Flags::C, carry);
                                 val
                             },
-                            ShiftOp::SLA => todo!(),
-                            ShiftOp::SRA => todo!(),
-                            ShiftOp::SLL => todo!(),
-                            ShiftOp::SRL => todo!(),
+                            ShiftOp::SLA => {
+                                let mut val = val.rotate_left(1);
+                                let carry = val & 0x1 != 0; val &= !0x1;
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::SRA => {
+                                let mut val = val.rotate_right(1);
+                                let carry = val & 0x80 != 0; val &= !0x80;
+                                val |= (val | 0x40) << 1;
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::SLL => {
+                                let mut val = val.rotate_left(1);
+                                let carry = val & 0x1 != 0; val |= 0x1;
+                                flags.set(Flags::C, carry);
+                                val
+                            },
+                            ShiftOp::SRL => {
+                                let mut val = val.rotate_right(1);
+                                let carry = val & 0x80 != 0; val &= !0x80;
+                                flags.set(Flags::C, carry);
+                                val
+                            },
                             ShiftOp::RLCA => {
                                 let val = val.rotate_left(1);
                                 flags.set(Flags::C, val & 0x1 != 0);
@@ -445,10 +477,44 @@ impl Device for Cpu {
                                 flags.set(Flags::C, carry);
                                 val
                             },
-                            ShiftOp::RLD => todo!(),
-                            ShiftOp::RRD => todo!(),
+                            ShiftOp::RLD => {
+                                yield self.clock.rising(3); // M4
+                                let acc = self.rg(Reg::A).get();
+                                self.rg(Reg::A).set((acc & 0xf0) | (val >> 4));
+                                (val << 4) | (acc & 0xf)
+                            },
+                            ShiftOp::RRD => {
+                                yield self.clock.rising(3); // M4
+                                let acc = self.rg(Reg::A).get();
+                                self.rg(Reg::A).set((acc & 0xf0) | val & 0xf);
+                                (val >> 4) | (acc << 4)
+                            },
                         };
-                        self.rg(Reg::A).set(result);
+
+                        match op {
+                            ShiftOp::RLCA | ShiftOp::RRCA | ShiftOp::RLA | ShiftOp::RRA => (),
+                            _ => { // Set Z,S,P flags for all ops except above
+                                flags.set_zs_flags_u8(result);
+                                flags.set_parity_flag(result);
+                            }
+                        }
+
+                        match reg {
+                            Reg::B | Reg::C | Reg::D | Reg::E | Reg::H | Reg::L | Reg::A => {
+                                self.rg(reg).set(result);
+                            },
+                            Reg::AtHL => {
+                                yield_from!(self.memory_write(self.rp(RegPair::HL).get(), result));
+                            },
+                            Reg::AtIX | Reg::AtIY => {
+                                yield_from!(self.memory_write(
+                                    self.idx_addr(reg, instruction.expect_displacement()),
+                                    result
+                                ));
+                            },
+                            _ => unreachable!(),
+                        }
+
                         self.set_flags(flags);
                     },
                     Token::SHOPLD(op, reg, dst) => {

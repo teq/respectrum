@@ -167,8 +167,8 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 (1, 1, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::R, Reg::A), upnext: TokenType::Opcode },
                 (1, 2, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::I), upnext: TokenType::Opcode },
                 (1, 3, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::R), upnext: TokenType::Opcode },
-                (1, 4, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRD, Reg::A), upnext: TokenType::Opcode },
-                (1, 5, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLD, Reg::A), upnext: TokenType::Opcode },
+                (1, 4, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRD, Reg::AtHL), upnext: TokenType::Opcode },
+                (1, 5, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLD, Reg::AtHL), upnext: TokenType::Opcode },
                 (1, _, 7) => TokenDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
                 (1, _, _) => unreachable!(),
                 (2, y, z) if z <= 3 && y >= 4 => TokenDecodeResult {

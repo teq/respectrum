@@ -82,12 +82,12 @@ impl Device for Cpu {
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(dst, instruction.expect_displacement());
+                        let addr = self.idx_addr(dst, instruction.displacement.unwrap());
                         yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
                         yield self.clock.rising(2); // complement M3 to 5 t-cycles
-                        let addr = self.idx_addr(src, instruction.expect_displacement());
+                        let addr = self.idx_addr(src, instruction.displacement.unwrap());
                         self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(Reg::AtHL, src) => {
@@ -382,22 +382,7 @@ impl Device for Cpu {
                     // Rotate and Shift
 
                     Token::SHOP(op, reg, maybe_dst) => {
-                        let val = match reg {
-                            Reg::AtHL => {
-                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
-                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
-                                val
-                            },
-                            Reg::AtIX | Reg::AtIY => {
-                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
-                                let val = yield_from!(self.memory_read(
-                                    self.idx_addr(reg, instruction.expect_displacement())
-                                ));
-                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
-                                val
-                            },
-                            reg => self.rg(reg).get(),
-                        };
+                        let val = yield_from!(self.read_register(reg, instruction.displacement));
 
                         let mut flags = self.get_flags() & !(Flags::H | Flags::N);
 
@@ -497,18 +482,7 @@ impl Device for Cpu {
                             }
                         }
 
-                        match reg {
-                            Reg::AtHL => {
-                                yield_from!(self.memory_write(self.rp(RegPair::HL).get(), result));
-                            },
-                            Reg::AtIX | Reg::AtIY => {
-                                yield_from!(self.memory_write(
-                                    self.idx_addr(reg, instruction.expect_displacement()),
-                                    result
-                                ));
-                            },
-                            reg => self.rg(reg).set(result),
-                        }
+                        yield_from!(self.write_register(reg, result, instruction.displacement));
 
                         // Covers undocumented CCCB/FDCB opcodes which addtionally write result
                         // to some register. E.g. RLC (IX+n),B
@@ -522,22 +496,7 @@ impl Device for Cpu {
                     // Bit Set, Reset and Test
 
                     Token::BIT(bit, reg) => {
-                        let val = match reg {
-                            Reg::AtHL => {
-                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
-                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
-                                val
-                            },
-                            Reg::AtIX | Reg::AtIY => {
-                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
-                                let val = yield_from!(self.memory_read(
-                                    self.idx_addr(reg, instruction.expect_displacement())
-                                ));
-                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
-                                val
-                            },
-                            reg => self.rg(reg).get(),
-                        };
+                        let val = yield_from!(self.read_register(reg, instruction.displacement));
                         let mut flags = self.get_flags() | Flags::H & !Flags::N;
                         let zero = (val >> bit) & 0x1 == 0;
                         flags.set(Flags::Z, zero);
@@ -545,22 +504,7 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::SET(bit, reg, maybe_dst) | Token::RES(bit, reg, maybe_dst) => {
-                        let val = match reg {
-                            Reg::AtHL => {
-                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
-                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
-                                val
-                            },
-                            Reg::AtIX | Reg::AtIY => {
-                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
-                                let val = yield_from!(self.memory_read(
-                                    self.idx_addr(reg, instruction.expect_displacement())
-                                ));
-                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
-                                val
-                            },
-                            reg => self.rg(reg).get(),
-                        };
+                        let val = yield_from!(self.read_register(reg, instruction.displacement));
 
                         let result = if let Token::SET(..) = instruction.opcode {
                             val | (0x1 << bit)
@@ -568,18 +512,7 @@ impl Device for Cpu {
                             val & !(0x1 << bit)
                         };
 
-                        match reg {
-                            Reg::AtHL => {
-                                yield_from!(self.memory_write(self.rp(RegPair::HL).get(), result));
-                            },
-                            Reg::AtIX | Reg::AtIY => {
-                                yield_from!(self.memory_write(
-                                    self.idx_addr(reg, instruction.expect_displacement()),
-                                    result
-                                ));
-                            },
-                            reg => self.rg(reg).set(result),
-                        }
+                        yield_from!(self.write_register(reg, result, instruction.displacement));
 
                         // Covers undocumented CCCB/FDCB opcodes which addtionally write result
                         // to some register. E.g. RLC (IX+n),B
@@ -991,6 +924,44 @@ impl Cpu {
             if repeat && !flags.contains(Flags::Z) {
                 yield self.clock.rising(5);
                 self.advance_pc(-2); // rewind PC 2 bytes back
+            }
+        }
+    }
+
+    fn read_register<'a>(&'a self, reg: Reg, displacement: Option<i8>) -> impl Task<u8> + 'a {
+        #[coroutine] move || {
+            match reg {
+                Reg::AtHL => {
+                    let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
+                    yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                    val
+                },
+                Reg::AtIX | Reg::AtIY => {
+                    yield self.clock.rising(1); // complement M4 to 5 t-cycles
+                    let val = yield_from!(self.memory_read(
+                        self.idx_addr(reg, displacement.unwrap())
+                    ));
+                    yield self.clock.rising(1); // complement M5 to 4 t-cycles
+                    val
+                },
+                reg => self.rg(reg).get(),
+            }
+        }
+    }
+
+    fn write_register<'a>(&'a self, reg: Reg, value: u8, displacement: Option<i8>) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            match reg {
+                Reg::AtHL => {
+                    yield_from!(self.memory_write(self.rp(RegPair::HL).get(), value));
+                },
+                Reg::AtIX | Reg::AtIY => {
+                    yield_from!(self.memory_write(
+                        self.idx_addr(reg, displacement.unwrap()),
+                        value
+                    ));
+                },
+                reg => self.rg(reg).set(value),
             }
         }
     }

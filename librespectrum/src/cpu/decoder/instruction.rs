@@ -21,10 +21,6 @@ impl fmt::Display for Instruction {
 
 impl Instruction {
 
-    pub fn expect_displacement(&self) -> i8 {
-        self.displacement.expect("Expecting displacement to be defined")
-    }
-
     pub fn expect_byte_data(&self) -> u8 {
         if let Some(DataValue::Byte(value)) = self.data {
             value
@@ -244,11 +240,11 @@ impl Instruction {
             Reg::IYH => String::from("IYH"),
             Reg::IYL => String::from("IYL"),
             Reg::AtIX => {
-                let displacement = self.expect_displacement();
+                let displacement = self.displacement.unwrap();
                 format!("(IX{})", self.format_number_with_sign(displacement as i32))
             },
             Reg::AtIY => {
-                let displacement = self.expect_displacement();
+                let displacement = self.displacement.unwrap();
                 format!("(IY{})", self.format_number_with_sign(displacement as i32))
             },
             other => unreachable!("{:?}", other)
@@ -277,7 +273,7 @@ impl Instruction {
     }
 
     fn format_addr_displacement(&self) -> String {
-        let displacement = self.expect_displacement() as i32 + 2;
+        let displacement = self.displacement.unwrap() as i32 + 2;
         format!("${}", self.format_number_with_sign(displacement))
     }
 

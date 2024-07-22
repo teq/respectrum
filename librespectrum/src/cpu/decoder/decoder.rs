@@ -167,8 +167,8 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 (1, 1, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::R, Reg::A), upnext: TokenType::Opcode },
                 (1, 2, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::I), upnext: TokenType::Opcode },
                 (1, 3, 7) => TokenDecodeResult { token: Token::LD_RG_RG(Reg::A, Reg::R), upnext: TokenType::Opcode },
-                (1, 4, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRD, Reg::AtHL), upnext: TokenType::Opcode },
-                (1, 5, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLD, Reg::AtHL), upnext: TokenType::Opcode },
+                (1, 4, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRD, Reg::AtHL, None), upnext: TokenType::Opcode },
+                (1, 5, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLD, Reg::AtHL, None), upnext: TokenType::Opcode },
                 (1, _, 7) => TokenDecodeResult { token: Token::NOP, upnext: TokenType::Opcode },
                 (1, _, _) => unreachable!(),
                 (2, y, z) if z <= 3 && y >= 4 => TokenDecodeResult {
@@ -182,10 +182,10 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
             Some(0xcb) => {
                 let (y, z) = (get_y(byte), get_z(byte));
                 match get_x(byte) {
-                    0 => TokenDecodeResult { token: Token::SHOP(ShiftOp::from(y), Reg::from(z)), upnext: TokenType::Opcode },
+                    0 => TokenDecodeResult { token: Token::SHOP(ShiftOp::from(y), Reg::from(z), None), upnext: TokenType::Opcode },
                     1 => TokenDecodeResult { token: Token::BIT(y, Reg::from(z)), upnext: TokenType::Opcode },
-                    2 => TokenDecodeResult { token: Token::RES(y, Reg::from(z)), upnext: TokenType::Opcode },
-                    3 => TokenDecodeResult { token: Token::SET(y, Reg::from(z)), upnext: TokenType::Opcode },
+                    2 => TokenDecodeResult { token: Token::RES(y, Reg::from(z), None), upnext: TokenType::Opcode },
+                    3 => TokenDecodeResult { token: Token::SET(y, Reg::from(z), None), upnext: TokenType::Opcode },
                     _ => unreachable!()
                 }
             },
@@ -195,13 +195,13 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 byte = yield TokenDecodeResult { token: Token::Displacement(byte as i8), upnext: TokenType::Opcode };
                 TokenDecodeResult {
                     token: match (get_x(byte), get_y(byte), get_z(byte)) {
-                        (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL)),
-                        (0, y, z) => Token::SHOPLD(ShiftOp::from(y), alt_reg(Reg::AtHL), Reg::from(z)),
+                        (0, y, 6) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL), None),
+                        (0, y, z) => Token::SHOP(ShiftOp::from(y), alt_reg(Reg::AtHL), Some(Reg::from(z))),
                         (1, y, _) => Token::BIT(y, alt_reg(Reg::AtHL)),
-                        (2, y, 6) => Token::RES(y, alt_reg(Reg::AtHL)),
-                        (2, y, z) => Token::RESLD(y, alt_reg(Reg::AtHL), Reg::from(z)),
-                        (3, y, 6) => Token::SET(y, alt_reg(Reg::AtHL)),
-                        (3, y, z) => Token::SETLD(y, alt_reg(Reg::AtHL), Reg::from(z)),
+                        (2, y, 6) => Token::RES(y, alt_reg(Reg::AtHL), None),
+                        (2, y, z) => Token::RES(y, alt_reg(Reg::AtHL), Some(Reg::from(z))),
+                        (3, y, 6) => Token::SET(y, alt_reg(Reg::AtHL), None),
+                        (3, y, z) => Token::SET(y, alt_reg(Reg::AtHL), Some(Reg::from(z))),
                         (_, _, _) => unreachable!()
                     },
                     upnext: TokenType::Opcode
@@ -327,10 +327,10 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 },
 
                 // x=0, z=7
-                (0, 0, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLCA, Reg::A), upnext: TokenType::Opcode },
-                (0, 1, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRCA, Reg::A), upnext: TokenType::Opcode },
-                (0, 2, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLA, Reg::A), upnext: TokenType::Opcode },
-                (0, 3, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRA, Reg::A), upnext: TokenType::Opcode },
+                (0, 0, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLCA, Reg::A, None), upnext: TokenType::Opcode },
+                (0, 1, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRCA, Reg::A, None), upnext: TokenType::Opcode },
+                (0, 2, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RLA, Reg::A, None), upnext: TokenType::Opcode },
+                (0, 3, 7) => TokenDecodeResult { token: Token::SHOP(ShiftOp::RRA, Reg::A, None), upnext: TokenType::Opcode },
                 (0, 4, 7) => TokenDecodeResult { token: Token::DAA, upnext: TokenType::Opcode },
                 (0, 5, 7) => TokenDecodeResult { token: Token::CPL, upnext: TokenType::Opcode },
                 (0, 6, 7) => TokenDecodeResult { token: Token::SCF, upnext: TokenType::Opcode },

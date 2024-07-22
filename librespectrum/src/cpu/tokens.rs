@@ -55,15 +55,12 @@ pub enum Token {
     DEC_RP(RegPair),
 
     // Rotate and Shift
-    SHOP(ShiftOp, Reg),
-    SHOPLD(ShiftOp, Reg, Reg), // undocumented
+    SHOP(ShiftOp, Reg, Option<Reg>),
 
     // Bit Set, Reset and Test
     BIT(u8, Reg),
-    SET(u8, Reg),
-    SETLD(u8, Reg, Reg),  // undocumented
-    RES(u8, Reg),
-    RESLD(u8, Reg, Reg),  // undocumented
+    SET(u8, Reg, Option<Reg>),
+    RES(u8, Reg, Option<Reg>),
 
     // Jump, Call and Return
     JP(Condition),

@@ -381,14 +381,12 @@ impl Device for Cpu {
 
                     // Rotate and Shift
 
-                    Token::SHOP(op, reg) => {
+                    Token::SHOP(op, reg, maybe_dst) => {
                         let val = match reg {
-                            Reg::B | Reg::C | Reg::D | Reg::E | Reg::H | Reg::L | Reg::A => {
-                                self.rg(reg).get()
-                            },
                             Reg::AtHL => {
+                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
                                 yield self.clock.rising(1); // complement M3 to 4 t-cycles
-                                yield_from!(self.memory_read(self.rp(RegPair::HL).get()))
+                                val
                             },
                             Reg::AtIX | Reg::AtIY => {
                                 yield self.clock.rising(1); // complement M4 to 5 t-cycles
@@ -398,7 +396,7 @@ impl Device for Cpu {
                                 yield self.clock.rising(1); // complement M5 to 4 t-cycles
                                 val
                             },
-                            _ => unreachable!(),
+                            reg => self.rg(reg).get(),
                         };
 
                         let mut flags = self.get_flags() & !(Flags::H | Flags::N);
@@ -500,9 +498,6 @@ impl Device for Cpu {
                         }
 
                         match reg {
-                            Reg::B | Reg::C | Reg::D | Reg::E | Reg::H | Reg::L | Reg::A => {
-                                self.rg(reg).set(result);
-                            },
                             Reg::AtHL => {
                                 yield_from!(self.memory_write(self.rp(RegPair::HL).get(), result));
                             },
@@ -512,31 +507,85 @@ impl Device for Cpu {
                                     result
                                 ));
                             },
-                            _ => unreachable!(),
+                            reg => self.rg(reg).set(result),
+                        }
+
+                        // Covers undocumented CCCB/FDCB opcodes which addtionally write result
+                        // to some register. E.g. RLC (IX+n),B
+                        if let Some(dst) = maybe_dst {
+                            self.rg(dst).set(result);
                         }
 
                         self.set_flags(flags);
-                    },
-                    Token::SHOPLD(op, reg, dst) => {
-                        unimplemented!();
                     },
 
                     // Bit Set, Reset and Test
 
                     Token::BIT(bit, reg) => {
-                        unimplemented!();
+                        let val = match reg {
+                            Reg::AtHL => {
+                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
+                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                                val
+                            },
+                            Reg::AtIX | Reg::AtIY => {
+                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
+                                let val = yield_from!(self.memory_read(
+                                    self.idx_addr(reg, instruction.expect_displacement())
+                                ));
+                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
+                                val
+                            },
+                            reg => self.rg(reg).get(),
+                        };
+                        let mut flags = self.get_flags() | Flags::H & !Flags::N;
+                        let zero = (val >> bit) & 0x1 == 0;
+                        flags.set(Flags::Z, zero);
+                        flags.set(Flags::P, zero);
+                        self.set_flags(flags);
                     },
-                    Token::SET(bit, reg) => {
-                        unimplemented!();
-                    },
-                    Token::SETLD(bit, reg, dst) => {
-                        unimplemented!();
-                    },
-                    Token::RES(bit, reg) => {
-                        unimplemented!();
-                    },
-                    Token::RESLD(bit, reg, dst) => {
-                        unimplemented!();
+                    Token::SET(bit, reg, maybe_dst) | Token::RES(bit, reg, maybe_dst) => {
+                        let val = match reg {
+                            Reg::AtHL => {
+                                let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
+                                yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                                val
+                            },
+                            Reg::AtIX | Reg::AtIY => {
+                                yield self.clock.rising(1); // complement M4 to 5 t-cycles
+                                let val = yield_from!(self.memory_read(
+                                    self.idx_addr(reg, instruction.expect_displacement())
+                                ));
+                                yield self.clock.rising(1); // complement M5 to 4 t-cycles
+                                val
+                            },
+                            reg => self.rg(reg).get(),
+                        };
+
+                        let result = if let Token::SET(..) = instruction.opcode {
+                            val | (0x1 << bit)
+                        } else {
+                            val & !(0x1 << bit)
+                        };
+
+                        match reg {
+                            Reg::AtHL => {
+                                yield_from!(self.memory_write(self.rp(RegPair::HL).get(), result));
+                            },
+                            Reg::AtIX | Reg::AtIY => {
+                                yield_from!(self.memory_write(
+                                    self.idx_addr(reg, instruction.expect_displacement()),
+                                    result
+                                ));
+                            },
+                            reg => self.rg(reg).set(result),
+                        }
+
+                        // Covers undocumented CCCB/FDCB opcodes which addtionally write result
+                        // to some register. E.g. RLC (IX+n),B
+                        if let Some(dst) = maybe_dst {
+                            self.rg(dst).set(result);
+                        }
                     },
 
                     // Jump, Call and Return

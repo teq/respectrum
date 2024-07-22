@@ -102,7 +102,7 @@ impl Instruction {
             Token::DEC_RP(rpair) => format!("DEC {}", self.format_regpair(rpair)),
 
             // Rotate and Shift
-            Token::SHOP(op, reg) => match op {
+            Token::SHOP(op, reg, None) => match op {
                 ShiftOp::RLC => format!("RLC {}", self.format_reg(reg)),
                 ShiftOp::RRC => format!("RRC {}", self.format_reg(reg)),
                 ShiftOp::RL => format!("RL {}", self.format_reg(reg)),
@@ -118,7 +118,7 @@ impl Instruction {
                 ShiftOp::RLD => String::from("RLD"),
                 ShiftOp::RRD => String::from("RRD"),
             },
-            Token::SHOPLD(op, reg, dst) => match op {
+            Token::SHOP(op, reg, Some(dst)) => match op {
                 ShiftOp::RLC => format!("RLC {},{}", self.format_reg(reg), self.format_reg(dst)),
                 ShiftOp::RRC => format!("RRC {},{}", self.format_reg(reg), self.format_reg(dst)),
                 ShiftOp::RL => format!("RL {},{}", self.format_reg(reg), self.format_reg(dst)),
@@ -132,13 +132,13 @@ impl Instruction {
 
             // Bit Set, Reset and Test
             Token::BIT(bit, reg) => format!("BIT {},{}", bit, self.format_reg(reg)),
-            Token::SET(bit, reg) => format!("SET {},{}", bit, self.format_reg(reg)),
-            Token::SETLD(bit, reg, dst) => format!(
+            Token::SET(bit, reg, None) => format!("SET {},{}", bit, self.format_reg(reg)),
+            Token::SET(bit, reg, Some(dst)) => format!(
                 "SET {},{},{}",
                 bit, self.format_reg(reg), self.format_reg(dst)
             ),
-            Token::RES(bit, reg) => format!("RES {},{}", bit, self.format_reg(reg)),
-            Token::RESLD(bit, reg, dst) => format!(
+            Token::RES(bit, reg, None) => format!("RES {},{}", bit, self.format_reg(reg)),
+            Token::RES(bit, reg, Some(dst)) => format!(
                 "RES {},{},{}",
                 bit, self.format_reg(reg), self.format_reg(dst)
             ),

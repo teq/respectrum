@@ -37,6 +37,8 @@ pub struct Cpu {
     pub iff1: Cell<bool>,
     pub iff2: Cell<bool>,
     pub im: Cell<u8>,
+    pub int: Cell<bool>,
+    pub nmi: Cell<bool>,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
 }
@@ -250,7 +252,7 @@ impl Device for Cpu {
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
                         let value = self.rg(reg).get();
                         let mut flags = self.get_flags() & Flags::C;
-                        let result = if let Token::INC_RG(_) = instruction.opcode {
+                        let result = if let Token::INC_RG(..) = instruction.opcode {
                             flags.set(Flags::P, (value as i8).overflowing_add(1 as i8).1);
                             flags.set(Flags::H, (value << 4).overflowing_add(1 << 4).1);
                             value.wrapping_add(1)
@@ -484,7 +486,7 @@ impl Device for Cpu {
 
                         yield_from!(self.write_register(reg, result, instruction.displacement));
 
-                        // Covers undocumented CCCB/FDCB opcodes which addtionally write result
+                        // Covers undocumented CCCB/FDCB opcodes which additionally write result
                         // to some register. E.g. RLC (IX+n),B
                         if let Some(dst) = maybe_dst {
                             self.rg(dst).set(result);
@@ -514,7 +516,7 @@ impl Device for Cpu {
 
                         yield_from!(self.write_register(reg, result, instruction.displacement));
 
-                        // Covers undocumented CCCB/FDCB opcodes which addtionally write result
+                        // Covers undocumented CCCB/FDCB opcodes which additionally write result
                         // to some register. E.g. RLC (IX+n),B
                         if let Some(dst) = maybe_dst {
                             self.rg(dst).set(result);
@@ -588,7 +590,7 @@ impl Device for Cpu {
 
                     // Non-opcode is not expected
 
-                    Token::Prefix(_) | Token::Displacement(_) | Token::Data(_) => unreachable!()
+                    Token::Prefix(..) | Token::Displacement(..) | Token::Data(..) => unreachable!()
 
                 }
 
@@ -689,8 +691,18 @@ impl Cpu {
         return pc;
     }
 
+    /// Probe INT & NMI bus lines and sets corresponding CPU flags
+    fn probe_interrupts(&self) {
+        if self.bus.nmi.probe().unwrap_or(false) {
+            self.nmi.set(true);
+        }
+        if self.bus.int.probe().unwrap_or(false) {
+            self.int.set(true);
+        }
+    }
+
     /// Probe WAIT signal and wait while it's set
-    fn probe_wait<'a>(&'a self) -> impl Task<()> + 'a {
+    fn process_wait<'a>(&'a self) -> impl Task<()> + 'a {
         #[coroutine] move || {
             while self.bus.wait.probe().unwrap_or(false) {
                 yield self.clock.falling(1); // wait 1 t-cycle
@@ -700,7 +712,7 @@ impl Cpu {
 
     /// Probe BUSRQ signal and set address, data and ctrl outputs
     /// to high impedance state while it's set
-    fn probe_busrq<'a>(&'a self) -> impl Task<()> + 'a {
+    fn process_busrq<'a>(&'a self) -> impl Task<()> + 'a {
         #[coroutine] move || {
             yield self.clock.rising(1);
             self.bus.data.release(self);
@@ -725,7 +737,7 @@ impl Cpu {
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
-            yield_from!(self.probe_wait());
+            yield_from!(self.process_wait());
             yield self.clock.rising(1); // T3 rising
             let byte = self.bus.data.expect();
             // Increment R (lower 7 bits)
@@ -738,9 +750,10 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
             yield self.clock.rising(1); // T4 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
             yield self.clock.falling(1); // T4 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ
-            if busrq { yield_from!(self.probe_busrq()); }
+            if busrq { yield_from!(self.process_busrq()); }
             return byte;
         }
     }
@@ -756,13 +769,14 @@ impl Cpu {
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
-            yield_from!(self.probe_wait());
+            yield_from!(self.process_wait());
             yield self.clock.rising(1); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            if busrq { yield_from!(self.probe_busrq()); }
+            if busrq { yield_from!(self.process_busrq()); }
             return byte;
         }
     }
@@ -780,12 +794,13 @@ impl Cpu {
             self.bus.ctrl.drive(self, Ctrl::MREQ);
             yield self.clock.falling(1); // T2 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::WR);
-            yield_from!(self.probe_wait());
+            yield_from!(self.process_wait());
             yield self.clock.rising(1); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            if busrq { yield_from!(self.probe_busrq()); }
+            if busrq { yield_from!(self.process_busrq()); }
         }
     }
 
@@ -851,13 +866,14 @@ impl Cpu {
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
             yield self.clock.falling(2); // TW falling
-            yield_from!(self.probe_wait());
+            yield_from!(self.process_wait());
             yield self.clock.rising(1); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
             yield self.clock.falling(1); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            if busrq { yield_from!(self.probe_busrq()); }
+            if busrq { yield_from!(self.process_busrq()); }
             return byte;
         }
     }
@@ -875,12 +891,13 @@ impl Cpu {
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
             yield self.clock.falling(2); // TW falling
-            yield_from!(self.probe_wait());
+            yield_from!(self.process_wait());
             yield self.clock.rising(1); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            if busrq { yield_from!(self.probe_busrq()); }
+            if busrq { yield_from!(self.process_busrq()); }
         }
     }
 

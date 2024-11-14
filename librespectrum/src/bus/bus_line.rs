@@ -27,12 +27,12 @@ impl<T: Copy> BusLine<T> {
 
     /// Get line owner (if any)
     pub fn owner(&self) -> Option<u32> {
-        self.state.get().and_then(|(owner, _)| Some(owner))
+        self.state.get().and_then(|(owner, ..)| Some(owner))
     }
 
     /// Probe signal line
     pub fn probe(&self) -> Option<T> {
-        self.state.get().and_then(|(_, value)| Some(value))
+        self.state.get().and_then(|(.., value)| Some(value))
     }
 
     /// Expect signal on the line
@@ -44,8 +44,8 @@ impl<T: Copy> BusLine<T> {
     pub fn drive<U: Identifiable>(&self, device: &U, value: T) {
         match self.state.get() {
             None => self.state.set(Some((device.id(), value))),
-            Some((owner, _)) if owner == device.id() => self.state.set(Some((owner, value))),
-            Some((owner, _)) => panic!("Device {} conflicts with {} on a bus line {}", device.id(), owner, self.name)
+            Some((owner, ..)) if owner == device.id() => self.state.set(Some((owner, value))),
+            Some((owner, ..)) => panic!("Device {} conflicts with {} on a bus line {}", device.id(), owner, self.name)
         }
     }
 
@@ -53,8 +53,8 @@ impl<T: Copy> BusLine<T> {
     pub fn release<U: Identifiable>(&self, device: &U) {
         match self.state.get() {
             None => (),
-            Some((owner, _)) if owner == device.id() => self.state.set(None),
-            Some((_, _)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
+            Some((owner, ..)) if owner == device.id() => self.state.set(None),
+            Some((..)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
         }
     }
 

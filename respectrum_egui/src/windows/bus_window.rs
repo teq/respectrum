@@ -1,6 +1,6 @@
 use egui::*;
 use egui_extras::{Size, TableBuilder};
-use librespectrum::{devs::BusLogger, bus::{Ctrl, Outs}};
+use librespectrum::{devs::BusLogger, bus::Ctrl};
 use std::rc::Rc;
 
 use super::{SubWindow, draw_window};
@@ -59,11 +59,11 @@ impl SubWindow for BusWindow {
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::MREQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::IORQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::RFSH) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::M1) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
+                            row.col(|ui| { if let Some(m1) = reading.m1 { ui.label(if m1 { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(busrq) = reading.busrq { ui.label(if busrq { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::BUSAK) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
+                            row.col(|ui| { if let Some(busak) = reading.busak { ui.label(if busak { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(wait) = reading.wait { ui.label(if wait { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(outs) = reading.outs { ui.label(if outs.contains(Outs::HALT) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
+                            row.col(|ui| { if let Some(halt) = reading.halt { ui.label(if halt { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(int) = reading.int { ui.label(if int { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(nmi) = reading.nmi { ui.label(if nmi { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
                             row.col(|ui| { if let Some(reset) = reading.reset { ui.label(if reset { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });

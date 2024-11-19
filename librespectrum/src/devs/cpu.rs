@@ -7,9 +7,9 @@ use std::{
 
 use crate::{
     mkword, spword, yield_from,
-    bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl, Outs},
+    bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl},
     cpu::{
-        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp},
+        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode},
         decoder::instruction_decoder,
         Flags,
     },
@@ -36,7 +36,7 @@ pub struct Cpu {
     pub ir: U16Cell,
     pub iff1: Cell<bool>,
     pub iff2: Cell<bool>,
-    pub im: Cell<u8>,
+    pub im: Cell<IntMode>,
     pub int: Cell<bool>,
     pub nmi: Cell<bool>,
     bus: Rc<CpuBus>,
@@ -54,6 +54,10 @@ impl Device for Cpu {
 
         Box::new(#[coroutine] move || {
 
+            self.bus.m1.drive(self, false);
+            self.bus.busak.drive(self, false);
+            self.bus.halt.drive(self, false);
+
             // Instruction loop
             loop {
 
@@ -63,7 +67,8 @@ impl Device for Cpu {
                 // Instruction decode loop
                 let instruction = loop {
 
-                    let pc = self.advance_pc(1);
+                    let pc = self.rp(RegPair::PC).get();
+                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
 
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
@@ -78,6 +83,7 @@ impl Device for Cpu {
 
                 };
 
+                // Process instruction
                 match instruction.opcode {
 
                     // 8-bit Load
@@ -321,16 +327,19 @@ impl Device for Cpu {
                     },
                     Token::NOP => {},
                     Token::HALT => {
-                        unimplemented!();
+                        self.bus.halt.drive(self, true);
+                        self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(1)); // rewind PC 1 byte back
                     },
                     Token::DI => {
-                        unimplemented!();
+                        self.iff1.set(false);
+                        self.iff2.set(false);
                     },
                     Token::EI => {
-                        unimplemented!();
+                        self.iff1.set(true);
+                        self.iff2.set(true);
                     },
                     Token::IM(mode) => {
-                        unimplemented!();
+                        self.im.set(mode);
                     },
 
                     // 16-Bit Arithmetic
@@ -594,6 +603,10 @@ impl Device for Cpu {
 
                 }
 
+                if self.nmi.get() || self.int.get() {
+                    self.bus.halt.drive(self, false);
+                }
+
             }
 
         })
@@ -684,13 +697,6 @@ impl Cpu {
         return addr as u16;
     }
 
-    /// Return current PC value and inc or dec it for the next read
-    fn advance_pc(&self, offset: i8) -> u16 {
-        let pc = self.rp(RegPair::PC).get();
-        self.rp(RegPair::PC).set(pc.wrapping_add(offset as u16));
-        return pc;
-    }
-
     /// Probe INT & NMI bus lines and sets corresponding CPU flags
     fn probe_interrupts(&self) {
         if self.bus.nmi.probe().unwrap_or(false) {
@@ -718,10 +724,12 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.release(self);
             self.bus.ctrl.release(self);
-            self.bus.outs.drive(self, Outs::BUSAK);
+            self.bus.busak.drive(self, true);
             while self.bus.busrq.probe().unwrap_or(false) {
                 yield self.clock.rising(1); // wait 1 t-cycle
             }
+            yield self.clock.falling(1);
+            self.bus.busak.drive(self, false);
         }
     }
 
@@ -733,7 +741,7 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::M1);
+            self.bus.m1.drive(self, true);
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
@@ -745,7 +753,7 @@ impl Cpu {
             self.rg(Reg::R).set(((r + 1) & 0x7f) | (r & 0x80));
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ & RD
-            self.bus.outs.drive(self, Outs::NONE); // clears M1
+            self.bus.m1.drive(self, false);
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
             yield self.clock.rising(1); // T4 rising
@@ -765,7 +773,6 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
             yield self.clock.falling(1); // T2 falling
@@ -788,7 +795,6 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
             self.bus.data.drive(self, val);
             self.bus.ctrl.drive(self, Ctrl::MREQ);
@@ -824,7 +830,7 @@ impl Cpu {
             self.set_flags(flags);
             if repeat && flags.contains(Flags::P) {
                 yield self.clock.rising(5);
-                self.advance_pc(-2); // rewind PC 2 bytes back
+                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
             }
         }
     }
@@ -850,7 +856,7 @@ impl Cpu {
             self.set_flags(flags);
             if repeat && flags.contains(Flags::P) {
                 yield self.clock.rising(5);
-                self.advance_pc(-2); // rewind PC 2 bytes back
+                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
             }
         }
     }
@@ -862,7 +868,6 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.rising(1); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
             yield self.clock.falling(2); // TW falling
@@ -885,7 +890,6 @@ impl Cpu {
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            self.bus.outs.drive(self, Outs::NONE);
             yield self.clock.falling(1); // T1 falling
             self.bus.data.drive(self, val);
             yield self.clock.rising(1); // T2 rising
@@ -918,7 +922,7 @@ impl Cpu {
             self.set_flags(flags);
             if repeat && !flags.contains(Flags::Z) {
                 yield self.clock.rising(5);
-                self.advance_pc(-2); // rewind PC 2 bytes back
+                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
             }
         }
     }
@@ -940,7 +944,7 @@ impl Cpu {
             self.set_flags(flags);
             if repeat && !flags.contains(Flags::Z) {
                 yield self.clock.rising(5);
-                self.advance_pc(-2); // rewind PC 2 bytes back
+                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
             }
         }
     }

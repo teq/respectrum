@@ -1,7 +1,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use crate::{
-    bus::{Clock, CpuBus, NoReturnTask, Outs, Ctrl},
+    bus::{Clock, CpuBus, NoReturnTask, Ctrl},
     devs::Device, misc::{Identifiable, RingBuff},
 };
 
@@ -11,7 +11,9 @@ pub struct BusState {
     pub addr: Option<u16>,
     pub data: Option<u8>,
     pub ctrl: Option<Ctrl>,
-    pub outs: Option<Outs>,
+    pub m1: Option<bool>,
+    pub busak: Option<bool>,
+    pub halt: Option<bool>,
     pub wait: Option<bool>,
     pub int: Option<bool>,
     pub nmi: Option<bool>,
@@ -49,7 +51,9 @@ impl Device for BusLogger {
                     addr: self.bus.addr.probe(),
                     data: self.bus.data.probe(),
                     ctrl: self.bus.ctrl.probe(),
-                    outs: self.bus.outs.probe(),
+                    m1: self.bus.m1.probe(),
+                    busak: self.bus.busak.probe(),
+                    halt: self.bus.halt.probe(),
                     wait: self.bus.wait.probe(),
                     int: self.bus.int.probe(),
                     nmi: self.bus.nmi.probe(),

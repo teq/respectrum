@@ -12,16 +12,6 @@ bitflags! {
     }
 }
 
-bitflags! {
-    #[derive(Default)]
-    pub struct Outs : u8 {
-        const NONE  = 0;
-        const M1    = 1 << 0;
-        const HALT  = 1 << 1;
-        const BUSAK = 1 << 2;
-    }
-}
-
 /// Z80 CPU bus
 pub struct CpuBus {
     /// Address bus (tri-state outputs)
@@ -30,8 +20,12 @@ pub struct CpuBus {
     pub data: BusLine<u8>,
     /// Tri-state control outputs
     pub ctrl: BusLine<Ctrl>,
-    /// Control outputs
-    pub outs: BusLine<Outs>,
+    /// M1 output
+    pub m1: BusLine<bool>,
+    /// BUSAK output
+    pub busak: BusLine<bool>,
+    /// HALT output
+    pub halt: BusLine<bool>,
     /// WAIT input
     pub wait: BusLine<bool>,
     /// INT input
@@ -50,7 +44,9 @@ impl Default for CpuBus {
             addr: BusLine::new("ADDR"),
             data: BusLine::new("DATA"),
             ctrl: BusLine::new("CTRL"),
-            outs: BusLine::new("OUTS"),
+            m1: BusLine::new("M1"),
+            busak: BusLine::new("BUSAK"),
+            halt: BusLine::new("HALT"),
             wait: BusLine::new("WAIT"),
             int: BusLine::new("INT"),
             nmi: BusLine::new("NMI"),

@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// Decoded CPU token
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
@@ -215,14 +217,24 @@ impl From<u8> for ShiftOp {
 }
 
 /// Interrupt mode
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Default)]
 pub enum IntMode {
-    IM0 = 0, IM01, IM1, IM2, // DO NOT reorder
+    #[default] IM0 = 0, IM01, IM1, IM2, // DO NOT reorder
 }
 
 impl From<u8> for IntMode {
     fn from(code: u8) -> Self {
         unsafe { std::mem::transmute(code & 0b11) }
+    }
+}
+
+impl fmt::Display for IntMode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            IntMode::IM0 | IntMode::IM01 => "0",
+            IntMode::IM1 => "1",
+            IntMode::IM2 => "2"
+        })
     }
 }
 

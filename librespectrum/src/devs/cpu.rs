@@ -9,7 +9,7 @@ use crate::{
     mkword, spword, yield_from,
     bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl},
     cpu::{
-        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode},
+        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode, Condition},
         decoder::instruction_decoder,
         Flags,
     },
@@ -535,7 +535,10 @@ impl Device for Cpu {
                     // Jump, Call and Return
 
                     Token::JP(cond) => {
-                        unimplemented!();
+                        if self.get_flags().satisfy(cond) {
+                            let dst = instruction.expect_word_data();
+                            self.rp(RegPair::PC).set(dst);
+                        }
                     },
                     Token::JP_RP(rpair) => {
                         unimplemented!();
@@ -603,8 +606,10 @@ impl Device for Cpu {
 
                 }
 
+                // Process possible interrupts
                 if self.nmi.get() || self.int.get() {
                     self.bus.halt.drive(self, false);
+                    unimplemented!();
                 }
 
             }

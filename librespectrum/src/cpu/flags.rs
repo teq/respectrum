@@ -1,3 +1,5 @@
+use crate::cpu::tokens::Condition;
+
 bitflags! {
     /// CPU flags
     pub struct Flags : u8 {
@@ -50,5 +52,19 @@ impl Flags {
         value ^= value >> 1;
         self.set(Flags::P, value & 1 != 0);
         self
+    }
+
+    pub fn satisfy(&self, condition: Condition) -> bool {
+        match condition {
+            Condition::NZ => !self.contains(Flags::Z),
+            Condition::Z => self.contains(Flags::Z),
+            Condition::NC => !self.contains(Flags::C),
+            Condition::C => self.contains(Flags::C),
+            Condition::PO => !self.contains(Flags::P),
+            Condition::PE => self.contains(Flags::P),
+            Condition::P => !self.contains(Flags::S),
+            Condition::M => self.contains(Flags::S),
+            Condition::None => true,
+        }
     }
 }

@@ -181,7 +181,24 @@ impl RegPair {
 /// Condition
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Condition {
-    NZ = 0, Z, NC, C, PO, PE, P, M, // DO NOT reorder
+    // DO NOT reorder
+    /// Non zero
+    NZ = 0,
+    /// Zero
+    Z,
+    /// Non carry
+    NC,
+    /// Carry
+    C,
+    /// Parity odd
+    PO,
+    /// Parity even
+    PE,
+    /// Sign positive
+    P,
+    /// Sign negative
+    M,
+    /// No condition
     None
 }
 

@@ -168,19 +168,11 @@ impl Device for Cpu {
                         self.rp(RegPair::SP).set(self.rp(rpair).get());
                     },
                     Token::POP(rpair) => {
-                        let addr = self.rp(RegPair::SP).get();
-                        let lo = yield_from!(self.memory_read(addr));
-                        let hi = yield_from!(self.memory_read(addr + 1));
-                        self.rp(rpair).set(mkword!(hi, lo));
-                        self.rp(RegPair::SP).set(addr + 2);
+                        self.rp(rpair).set(yield_from!(self.stack_pop()));
                     },
                     Token::PUSH(rpair) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
-                        let addr = self.rp(RegPair::SP).get();
-                        let (hi, lo) = spword!(self.rp(rpair).get());
-                        yield_from!(self.memory_write(addr - 1, hi));
-                        yield_from!(self.memory_write(addr - 2, lo));
-                        self.rp(RegPair::SP).set(addr - 2);
+                        yield_from!(self.stack_push(self.rp(rpair).get()));
                     },
 
                     // Exchange
@@ -255,6 +247,7 @@ impl Device for Cpu {
                             self.rg(Reg::A).set(result);
                         }
                     },
+
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
                         let value = self.rg(reg).get();
                         let mut flags = self.get_flags() & Flags::C;
@@ -541,19 +534,37 @@ impl Device for Cpu {
                         }
                     },
                     Token::JP_RP(rpair) => {
-                        unimplemented!();
+                        self.rp(RegPair::PC).set(self.rp(rpair).get());
                     },
                     Token::JR(cond) => {
-                        unimplemented!();
+                        if self.get_flags().satisfy(cond) {
+                            yield self.clock.rising(5); // M3 = 5 T-cycles
+                            let offset = instruction.displacement.unwrap();
+                            self.rp(RegPair::PC).update(|pc| pc.wrapping_add_signed(offset as i16));
+                        }
                     },
                     Token::DJNZ => {
-                        unimplemented!();
+                        if self.rg(Reg::B).update(|b| b.wrapping_sub(1)) != 0 {
+                            yield self.clock.rising(5); // M3 = 5 T-cycles
+                            let offset = instruction.displacement.unwrap();
+                            self.rp(RegPair::PC).update(|pc| pc.wrapping_add_signed(offset as i16));
+                        }
                     },
                     Token::CALL(cond) => {
-                        unimplemented!();
+                        if self.get_flags().satisfy(cond) {
+                            yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                            yield_from!(self.stack_push(self.rp(RegPair::PC).get()));
+                            self.rp(RegPair::PC).set(instruction.expect_word_data());
+                        }
+                    },
+                    Token::RET(Condition::None) => {
+                        self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
                     },
                     Token::RET(cond) => {
-                        unimplemented!();
+                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        if self.get_flags().satisfy(cond) {
+                            self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
+                        }
                     },
                     Token::RETI => {
                         unimplemented!();
@@ -562,7 +573,9 @@ impl Device for Cpu {
                         unimplemented!();
                     },
                     Token::RST(n) => {
-                        unimplemented!();
+                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_from!(self.stack_push(self.rp(RegPair::PC).get()));
+                        self.rp(RegPair::PC).set((n << 3) as u16);
                     },
 
                     // IO group
@@ -992,4 +1005,23 @@ impl Cpu {
         }
     }
 
+    fn stack_pop<'a>(&'a self) -> impl Task<u16> + 'a {
+        #[coroutine] move || {
+            let addr = self.rp(RegPair::SP).get();
+            let lo = yield_from!(self.memory_read(addr));
+            let hi = yield_from!(self.memory_read(addr + 1));
+            self.rp(RegPair::SP).set(addr + 2);
+            return mkword!(hi, lo);
+        }
+    }
+
+    fn stack_push<'a>(&'a self, value: u16) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            let addr = self.rp(RegPair::SP).get();
+            let (hi, lo) = spword!(value);
+            yield_from!(self.memory_write(addr - 1, hi));
+            yield_from!(self.memory_write(addr - 2, lo));
+            self.rp(RegPair::SP).set(addr - 2);
+        }
+    }
 }

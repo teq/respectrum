@@ -13,6 +13,16 @@ pub struct Instruction {
     pub data: Option<DataValue>,
 }
 
+impl Default for Instruction {
+    fn default() -> Self {
+        Self {
+            opcode: Token::NOP,
+            displacement: None,
+            data: None
+        }
+    }
+}
+
 impl fmt::Display for Instruction {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.format_mnemonic().as_str())
@@ -160,7 +170,7 @@ impl Instruction {
             },
             Token::RETI => String::from("RETI"),
             Token::RETN => String::from("RETN"),
-            Token::RST(value) => format!("RST {}", self.format_byte(value * 8)),
+            Token::RST(addr) => format!("RST {}", self.format_byte(*addr)),
 
             // IO
             Token::IN_A_N => format!("IN A,({})", self.format_data()),

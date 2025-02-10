@@ -10,7 +10,7 @@ use crate::{
     bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode, Condition},
-        decoder::instruction_decoder,
+        decoder::{instruction_decoder, Instruction},
         Flags,
     },
     misc::{U16Cell, Identifiable},
@@ -66,6 +66,22 @@ impl Device for Cpu {
 
                 // Instruction decode loop
                 let instruction = loop {
+
+                    // Process possible interrupts
+                    if self.nmi.get() || self.int.get() {
+                        self.bus.halt.drive(self, false);
+                    }
+
+                    if self.nmi.get() {
+                        self.nmi.set(false);
+                        self.iff1.set(false);
+                        break Instruction { opcode: Token::RST(0x66), ..Default::default() };
+                    } else if self.int.get() && self.iff1.get() {
+                        self.int.set(false);
+                        self.iff1.set(false);
+                        self.iff2.set(false);
+                        unimplemented!();
+                    }
 
                     let pc = self.rp(RegPair::PC).get();
                     self.rp(RegPair::PC).set(pc.wrapping_add(1));
@@ -570,12 +586,13 @@ impl Device for Cpu {
                         unimplemented!();
                     },
                     Token::RETN => {
-                        unimplemented!();
+                        self.iff1.set(self.iff2.get());
+                        self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
                     },
-                    Token::RST(n) => {
+                    Token::RST(addr) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
                         yield_from!(self.stack_push(self.rp(RegPair::PC).get()));
-                        self.rp(RegPair::PC).set((n << 3) as u16);
+                        self.rp(RegPair::PC).set(addr as u16);
                     },
 
                     // IO group
@@ -617,12 +634,6 @@ impl Device for Cpu {
 
                     Token::Prefix(..) | Token::Displacement(..) | Token::Data(..) => unreachable!()
 
-                }
-
-                // Process possible interrupts
-                if self.nmi.get() || self.int.get() {
-                    self.bus.halt.drive(self, false);
-                    unimplemented!();
                 }
 
             }

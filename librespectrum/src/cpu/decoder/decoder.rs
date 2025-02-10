@@ -481,7 +481,10 @@ fn token_decoder() -> impl Coroutine<u8, Yield=TokenDecodeResult, Return=TokenDe
                 },
 
                 // x=3, z=7
-                (3, y, 7) => TokenDecodeResult { token: Token::RST(y), upnext: TokenType::Opcode },
+                (3, y, 7) => TokenDecodeResult {
+                    token: Token::RST(y << 3),
+                    upnext: TokenType::Opcode
+                },
 
                 (_, _, _) => unreachable!()
 

@@ -67,6 +67,8 @@ impl Device for Cpu {
                 // Instruction decode loop
                 let instruction = loop {
 
+                    let pc = self.rp(RegPair::PC).get();
+
                     // Process possible interrupts
                     if self.nmi.get() || self.int.get() {
                         self.bus.halt.drive(self, false);
@@ -75,16 +77,13 @@ impl Device for Cpu {
                     if self.nmi.get() {
                         self.nmi.set(false);
                         self.iff1.set(false);
-                        break Instruction { opcode: Token::RST(0x66), ..Default::default() };
+                        unimplemented!();
                     } else if self.int.get() && self.iff1.get() {
                         self.int.set(false);
                         self.iff1.set(false);
                         self.iff2.set(false);
                         unimplemented!();
                     }
-
-                    let pc = self.rp(RegPair::PC).get();
-                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
 
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
@@ -97,6 +96,7 @@ impl Device for Cpu {
                         CoroutineState::Complete(instruction) => break instruction
                     }
 
+                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
                 };
 
                 // Process instruction
@@ -582,10 +582,10 @@ impl Device for Cpu {
                             self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
                         }
                     },
-                    Token::RETI => {
-                        unimplemented!();
-                    },
-                    Token::RETN => {
+                    Token::RETN | Token::RETI => {
+                        // NOTE: According to the official Z80 documentation,
+                        // RETI should behave like RET (not copying IFF2 to IFF1).
+                        // But in practice it copies it the same way as RETN.
                         self.iff1.set(self.iff2.get());
                         self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
                     },
@@ -759,6 +759,40 @@ impl Cpu {
             }
             yield self.clock.falling(1);
             self.bus.busak.drive(self, false);
+        }
+    }
+
+    /// Interrupt response m-cycle. Takes 6 t-cycles.
+    /// Similar to M1, but with 2 additional wait cycles
+    /// and IORQ instead of MREQ & RD.
+    fn interrupt_response<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
+        #[coroutine] move || {
+            yield self.clock.rising(1); // T1 rising
+            self.bus.data.release(self);
+            self.bus.addr.drive(self, addr);
+            self.bus.ctrl.drive(self, Ctrl::NONE);
+            self.bus.m1.drive(self, true);
+            yield self.clock.falling(3); // TW1 falling
+            self.bus.ctrl.drive(self, Ctrl::IORQ);
+            yield self.clock.falling(1); // TW2 falling
+            yield_from!(self.process_wait());
+            yield self.clock.rising(1); // T3 rising
+            let byte = self.bus.data.expect();
+            // Increment R (lower 7 bits)
+            let r = self.rg(Reg::R).get();
+            self.rg(Reg::R).set(((r + 1) & 0x7f) | (r & 0x80));
+            self.bus.addr.drive(self, self.rp(RegPair::IR).get());
+            self.bus.ctrl.drive(self, Ctrl::RFSH); // clears IORQ
+            self.bus.m1.drive(self, false);
+            yield self.clock.falling(1); // T3 falling
+            self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
+            yield self.clock.rising(1); // T4 rising
+            let busrq = self.bus.busrq.probe().unwrap_or(false);
+            self.probe_interrupts();
+            yield self.clock.falling(1); // T4 falling
+            self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ
+            if busrq { yield_from!(self.process_busrq()); }
+            return byte;
         }
     }
 

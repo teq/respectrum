@@ -10,7 +10,7 @@ use crate::{
     bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl},
     cpu::{
         tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode, Condition},
-        decoder::{instruction_decoder, Instruction},
+        decoder::{instruction_decoder},
         Flags,
     },
     misc::{U16Cell, Identifiable},
@@ -560,7 +560,8 @@ impl Device for Cpu {
                         }
                     },
                     Token::DJNZ => {
-                        if self.rg(Reg::B).update(|b| b.wrapping_sub(1)) != 0 {
+                        self.rg(Reg::B).update(|b| b.wrapping_sub(1));
+                        if self.rg(Reg::B).get() != 0 {
                             yield self.clock.rising(5); // M3 = 5 T-cycles
                             let offset = instruction.displacement.unwrap();
                             self.rp(RegPair::PC).update(|pc| pc.wrapping_add_signed(offset as i16));

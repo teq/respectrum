@@ -2,7 +2,7 @@
 name = "color_clash"
 version = "0.1.0"
 authors = ["Andrey Tselishchev <vorteq@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [[bin]]
 name = "cc"

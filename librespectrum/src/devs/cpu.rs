@@ -59,7 +59,7 @@ impl Device for Cpu {
             self.bus.halt.drive(self, false);
 
             // Instruction loop
-            loop {
+            'fetch: loop {
 
                 let mut decoder = instruction_decoder();
                 let mut upnext = TokenType::Opcode;
@@ -74,20 +74,47 @@ impl Device for Cpu {
                         self.bus.halt.drive(self, false);
                     }
 
-                    if self.nmi.get() {
-                        self.nmi.set(false);
-                        self.iff1.set(false);
-                        unimplemented!();
-                    } else if self.int.get() && self.iff1.get() {
-                        self.int.set(false);
-                        self.iff1.set(false);
-                        self.iff2.set(false);
-                        unimplemented!();
-                    }
-
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
-                        TokenType::Opcode => yield_from!(self.opcode_read(pc)),
+                        TokenType::Opcode => {
+                            if self.nmi.get() {
+                                // Handle non maskable interrupt: push PC, jump to 0x0066
+                                self.nmi.set(false);
+                                self.iff1.set(false);
+                                yield_from!(self.stack_push(pc));
+                                self.rp(RegPair::PC).set(0x0066);
+                                continue 'fetch;
+                            } else if self.int.get() && self.iff1.get() {
+                                // Handle maskable interrupt
+                                self.int.set(false);
+                                self.iff1.set(false);
+                                self.iff2.set(false);
+                                let vec_byte = yield_from!(self.interrupt_response(pc));
+                                match self.im.get() {
+                                    // IM0: external device supplies opcode; it is responsible for
+                                    // pushing PC (e.g. via an injected RST instruction)
+                                    IntMode::IM0 | IntMode::IM01 => vec_byte,
+                                    IntMode::IM1 => {
+                                        // Push PC and jump to fixed address 0x0038
+                                        yield_from!(self.stack_push(pc));
+                                        self.rp(RegPair::PC).set(0x0038);
+                                        continue 'fetch;
+                                    },
+                                    IntMode::IM2 => {
+                                        // Push PC, read 16-bit vector from table at (I:vec_byte)
+                                        yield_from!(self.stack_push(pc));
+                                        let vec_addr = mkword!(self.rg(Reg::I).get(), vec_byte);
+                                        let lo = yield_from!(self.memory_read(vec_addr));
+                                        let hi = yield_from!(self.memory_read(vec_addr.wrapping_add(1)));
+                                        self.rp(RegPair::PC).set(mkword!(hi, lo));
+                                        continue 'fetch;
+                                    },
+                                }
+                            } else {
+                                // Normal instruction fetch
+                                yield_from!(self.opcode_read(pc))
+                            }
+                        },
                         TokenType::Displacement | TokenType::Data => yield_from!(self.memory_read(pc))
                     };
 

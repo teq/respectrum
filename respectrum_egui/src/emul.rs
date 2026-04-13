@@ -100,11 +100,7 @@ fn main() {
 #[allow(unsafe_code)]
 fn run_native<'a>(app: Box<dyn eframe::App + 'a>) -> ! {
 
-    let native_options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(1024.0, 768.0)),
-        min_window_size: Some(egui::vec2(800.0, 600.0)),
-        ..Default::default()
-    };
+    let native_options = eframe::NativeOptions { maximized: true, ..Default::default() };
 
     let static_app = unsafe {
         std::mem::transmute::<Box<dyn eframe::App + 'a>, Box<dyn eframe::App + 'static>>(app)

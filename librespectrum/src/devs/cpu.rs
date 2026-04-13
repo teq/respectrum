@@ -119,13 +119,13 @@ impl Device for Cpu {
                         TokenType::Displacement | TokenType::Data => yield_from!(self.memory_read(pc))
                     };
 
+                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
+
                     match Pin::new(&mut decoder).resume(byte) {
                         CoroutineState::Yielded(result) => upnext = result.upnext,
                         CoroutineState::Complete(instruction) => break instruction
                     }
-
-                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
-                };
+               };
 
                 // Process instruction
                 match instruction.opcode {

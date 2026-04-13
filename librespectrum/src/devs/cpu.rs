@@ -44,7 +44,7 @@ pub struct Cpu {
 }
 
 impl Identifiable for Cpu {
-    fn id(&self) -> u32 { 1 }
+    fn id(&self) -> usize { 1 }
 }
 
 impl Device for Cpu {

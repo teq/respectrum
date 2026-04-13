@@ -9,7 +9,7 @@ pub struct BusLine<T> {
     name: &'static str,
 
     /// Line owner and state
-    state: Cell<Option<(u32, T)>>,
+    state: Cell<Option<(usize, T)>>,
 
 }
 
@@ -26,7 +26,7 @@ impl<T: Copy> BusLine<T> {
     }
 
     /// Get line owner (if any)
-    pub fn owner(&self) -> Option<u32> {
+    pub fn owner(&self) -> Option<usize> {
         self.state.get().and_then(|(owner, ..)| Some(owner))
     }
 
@@ -68,11 +68,11 @@ mod tests {
     fn mkline() -> BusLine::<bool> { BusLine::<bool>::new("Test line") }
 
     struct TestDevice {
-        id: u32
+        id: usize
     }
 
     impl Identifiable for TestDevice {
-        fn id(&self) -> u32 { self.id }
+        fn id(&self) -> usize { self.id }
     }
 
     static DEV1: TestDevice = TestDevice { id: 1 };

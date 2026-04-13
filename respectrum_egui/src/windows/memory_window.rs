@@ -90,8 +90,7 @@ impl MemoryWindow {
                     Cursor::Address(row) => Cursor::Memory(self.cols - 1, row),
                     Cursor::Memory(col, row) if col == self.cols - 1 => Cursor::Text(self.cols - 1, row),
                     Cursor::Memory(_, row) => Cursor::Memory(self.cols - 1, row),
-                    Cursor::Text(_, row) => Cursor::Text(self.cols - 1, row),
-                    _ => self.cursor
+                    Cursor::Text(_, row) => Cursor::Text(self.cols - 1, row)
                 }
             } else {
                 match self.cursor {

@@ -2,6 +2,6 @@
 pub trait Identifiable {
 
     /// Get object ID
-    fn id(&self) -> u32;
+    fn id(&self) -> usize;
 
 }

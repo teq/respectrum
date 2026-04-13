@@ -35,7 +35,7 @@ impl BusLogger {
 }
 
 impl Identifiable for BusLogger {
-    fn id(&self) -> u32 { 10 }
+    fn id(&self) -> usize { 10 }
 }
 
 impl Device for BusLogger {
@@ -63,7 +63,7 @@ impl Device for BusLogger {
 
                 self.readings.borrow_mut().push(state);
 
-                yield 1;
+                yield 1; // Advance to the next T-cycle edge (rising or falling)
 
             }
 

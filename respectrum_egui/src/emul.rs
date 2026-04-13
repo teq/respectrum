@@ -4,7 +4,7 @@ extern crate librespectrum;
 
 use librespectrum::{
     bus::{CpuBus, Clock, Scheduler},
-    devs::{mem::{Dynamic48k, Memory}, Device, Cpu, BusLogger}
+    devs::{mem::Memory, Device, DeviceManager}
 };
 
 use std::{
@@ -67,15 +67,17 @@ fn main() {
 
     let bus: Rc<CpuBus> = Default::default();
     let clock: Rc<Clock> = Default::default();
-    let cpu = Rc::new(Cpu::new(Rc::clone(&bus), Rc::clone(&clock)));
+
+    let device_manager = DeviceManager::new(Rc::clone(&bus), Rc::clone(&clock));
+    let cpu = device_manager.create_cpu();
     let mem: Rc<dyn Memory> = {
-        let mem = Rc::new(Dynamic48k::new(Rc::clone(&bus), Rc::clone(&clock)));
+        let mem = device_manager.create_dynamic_48k();
         let mut buffer: Vec<u8> = Vec::new();
         File::open("roms/48.rom").unwrap().read_to_end(&mut buffer).unwrap();
         mem.load(0, &buffer);
         mem
     };
-    let logger = Rc::new(BusLogger::new(Rc::clone(&bus), Rc::clone(&clock)));
+    let logger = device_manager.create_bus_logger();
 
     let scheduler =  Rc::new(RefCell::new(
         Scheduler::new(Rc::clone(&clock), vec![cpu.run(), mem.run(), logger.run()])

@@ -8,6 +8,7 @@ use super::Memory;
 
 /// Standard dynamic 48k memory
 pub struct Dynamic48k {
+    id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     memory: Vec<Cell<u8>>,
@@ -16,8 +17,9 @@ pub struct Dynamic48k {
 impl Dynamic48k {
 
     /// Create new memory instance
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
         Self {
+            id,
             bus, clock,
             memory: vec![Default::default(); usize::pow(2, 16)]
         }
@@ -51,7 +53,7 @@ impl Memory for Dynamic48k {
 }
 
 impl Identifiable for Dynamic48k {
-    fn id(&self) -> usize { 2 }
+    fn id(&self) -> usize { self.id }
 }
 
 impl Device for Dynamic48k {

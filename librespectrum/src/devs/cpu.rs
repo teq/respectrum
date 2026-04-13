@@ -21,6 +21,7 @@ use super::Device;
 /// Z80 CPU
 #[derive(Default)]
 pub struct Cpu {
+    id: usize,
     pub af: U16Cell,
     pub bc: U16Cell,
     pub de: U16Cell,
@@ -44,7 +45,7 @@ pub struct Cpu {
 }
 
 impl Identifiable for Cpu {
-    fn id(&self) -> usize { 1 }
+    fn id(&self) -> usize { self.id }
 }
 
 impl Device for Cpu {
@@ -675,8 +676,8 @@ impl Device for Cpu {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self { bus, clock, ..Default::default() }
+    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+        Self { id, bus, clock, ..Default::default() }
     }
 
     /// Get reference to register value

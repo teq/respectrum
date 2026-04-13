@@ -7,4 +7,4 @@ mod cpu;
 pub use cpu::*;
 
 mod device;
-pub use device::{Device, DeviceManager};
+pub use device::*;

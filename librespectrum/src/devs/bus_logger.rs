@@ -23,19 +23,20 @@ pub struct BusState {
 
 /// CPU bus logger
 pub struct BusLogger {
+    id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     pub readings: RefCell<RingBuff<BusState, 64>>,
 }
 
 impl BusLogger {
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self { bus, clock, readings: RefCell::new(RingBuff::new()) }
+    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+        Self { id, bus, clock, readings: RefCell::new(RingBuff::new()) }
     }
 }
 
 impl Identifiable for BusLogger {
-    fn id(&self) -> usize { 10 }
+    fn id(&self) -> usize { self.id }
 }
 
 impl Device for BusLogger {

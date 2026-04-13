@@ -50,16 +50,15 @@ impl<T: Copy> BusLine<T> {
         match self.state.get() {
             None => self.state.set(Some((device.id(), value))),
             Some((owner, ..)) if owner == device.id() => self.state.set(Some((owner, value))),
-            Some((owner, ..)) => panic!("Device {} conflicts with {} on a bus line {}", device.id(), owner, self.name)
+            Some((owner, ..)) => panic!("Device {} tries to drive the line {} owned by {}", device.id(), self.name, owner)
         }
     }
 
     /// Release signal line
     pub fn release<U: Identifiable>(&self, device: &U) {
         match self.state.get() {
-            None => (),
             Some((owner, ..)) if owner == device.id() => self.state.set(None),
-            Some((..)) => panic!("Device {} doesn't own the line {}", device.id(), self.name)
+            _ => ()
         }
     }
 
@@ -98,7 +97,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="conflict")]
+    #[should_panic]
     fn only_one_device_can_drive_the_line() {
         let line = mkline();
         line.drive(&DEV1, false);

@@ -93,12 +93,10 @@ impl<'a> Scheduler<'a> {
 
             // Advance to task's htcycles and continue task execution
             self.clock.set(task_htcycles);
-            if let CoroutineState::Yielded(offset) = Pin::new(task).resume(()) {
-                // Re-schedule current task with returned htcycles offset
-                Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
-            } else {
-                panic!("Expecting task to never return (complete)");
-            }
+            let CoroutineState::Yielded(offset) = Pin::new(task).resume(());
+
+            // Re-schedule current task with returned htcycles offset
+            Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
 
             // Recursively advance to the next step
             let htcycles_left = target_htcycles - task_htcycles;

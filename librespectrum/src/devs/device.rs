@@ -40,9 +40,9 @@ impl DeviceManager {
         self.device_names.borrow_mut().insert(id, name);
     }
 
-    /// Get the readable name for a device by its ID
-    pub fn get_name(&self, device: &dyn Device) -> Option<&'static str> {
-        self.device_names.borrow().get(&device.id()).copied()
+    /// Get the readable name for a device by its ID or device reference
+    pub fn get_name<T: Identifiable>(&self, identifiable: T) -> Option<&'static str> {
+        self.device_names.borrow().get(&identifiable.id()).copied()
     }
 
     /// Create a new CPU instance

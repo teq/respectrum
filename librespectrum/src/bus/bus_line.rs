@@ -25,6 +25,11 @@ impl<T: Copy> BusLine<T> {
         self.name
     }
 
+    /// Get line state (owner and value)
+    pub fn state(&self) -> Option<(usize, T)> {
+        self.state.get()
+    }
+
     /// Get line owner (if any)
     pub fn owner(&self) -> Option<usize> {
         self.state.get().and_then(|(owner, ..)| Some(owner))

@@ -68,7 +68,7 @@ fn main() {
     let bus: Rc<CpuBus> = Default::default();
     let clock: Rc<Clock> = Default::default();
 
-    let device_manager = DeviceManager::new(Rc::clone(&bus), Rc::clone(&clock));
+    let device_manager = Rc::new(DeviceManager::new(Rc::clone(&bus), Rc::clone(&clock)));
     let cpu = device_manager.create_cpu();
     let mem: Rc<dyn Memory> = {
         let mem = device_manager.create_dynamic_48k();
@@ -88,7 +88,7 @@ fn main() {
             (true, Box::new(CpuWindow::new(Rc::clone(&cpu), Rc::clone(&scheduler)))),
             (true, Box::new(DisassmWindow::new(Rc::clone(&cpu), Rc::clone(&mem)))),
             (true, Box::new(MemoryWindow::new(Rc::clone(&mem)))),
-            (true, Box::new(BusWindow::new(Rc::clone(&logger)))),
+            (true, Box::new(BusWindow::new(Rc::clone(&logger), Rc::clone(&device_manager)))),
         ],
         focus: 0,
     });

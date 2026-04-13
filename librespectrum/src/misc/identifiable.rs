@@ -5,3 +5,9 @@ pub trait Identifiable {
     fn id(&self) -> usize;
 
 }
+
+impl Identifiable for usize {
+    fn id(&self) -> usize {
+        *self
+    }
+}

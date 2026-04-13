@@ -1,17 +1,49 @@
 use egui::*;
 use egui_extras::{Size, TableBuilder};
-use librespectrum::{devs::BusLogger, bus::Ctrl};
+use librespectrum::{devs::{BusLogger, DeviceManager}, bus::Ctrl};
 use std::rc::Rc;
 
 use super::{SubWindow, draw_window};
 
 pub struct BusWindow {
-    logger: Rc<BusLogger>
+    logger: Rc<BusLogger>,
+    device_manager: Rc<DeviceManager>,
 }
 
 impl BusWindow {
-    pub fn new(logger: Rc<BusLogger>) -> Self {
-        Self { logger }
+    pub fn new(logger: Rc<BusLogger>, device_manager: Rc<DeviceManager>) -> Self {
+        Self { logger, device_manager }
+    }
+
+    // Helper to display optional boolean signal
+    fn signal_cell(&self, ui: &mut egui::Ui, signal: Option<(usize, bool)>) {
+        match signal {
+            Some((owner, value)) => {
+                let label = ui.label(if value { "H" } else { "L" });
+                if let Some(device_name) = self.device_manager.get_name(owner) {
+                    label.on_hover_text(format!("Device: {}", device_name));
+                }
+            }
+            None => { ui.colored_label(Color32::GRAY, "-"); }
+        }
+    }
+
+    // Helper to display control signal
+    fn ctrl_cell(&self, ui: &mut egui::Ui, ctrl: Option<(usize, Ctrl)>, flag: Ctrl) {
+        self.signal_cell(ui, ctrl.map(|(owner, ctrl_val)| (owner, ctrl_val.contains(flag))));
+    }
+
+    // Helper to display hex values
+    fn hex_cell(&self, ui: &mut egui::Ui, value: Option<(usize, impl std::fmt::UpperHex)>, placeholder: &str) {
+        match value {
+            Some((owner, val)) => {
+                let label = ui.label(format!("{:0width$X}", val, width = placeholder.len()));
+                if let Some(device_name) = self.device_manager.get_name(owner) {
+                    label.on_hover_text(format!("Device: {}", device_name));
+                }
+            }
+            None => { ui.colored_label(Color32::GRAY, placeholder); }
+        }
     }
 }
 
@@ -24,52 +56,38 @@ impl SubWindow for BusWindow {
         draw_window(self.name(), focused, ctx, |ui| {
 
             let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+            let headers = ["T", "ADDR", "DATA", "RD", "WR", "MREQ", "IORQ", "RFSH", "M1", "BUSRQ", "BUSAK", "WAIT", "HALT", "INT", "NMI", "RESET"];
 
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
-                .columns(Size::initial(30.0), 16)
+                .columns(Size::initial(30.0), headers.len())
                 .header(text_height, |mut header| {
-                    header.col(|ui| { ui.label("T"); });
-                    header.col(|ui| { ui.label("ADDR"); });
-                    header.col(|ui| { ui.label("DATA"); });
-                    header.col(|ui| { ui.label("RD"); });
-                    header.col(|ui| { ui.label("WR"); });
-                    header.col(|ui| { ui.label("MREQ"); });
-                    header.col(|ui| { ui.label("IORQ"); });
-                    header.col(|ui| { ui.label("RFSH"); });
-                    header.col(|ui| { ui.label("M1"); });
-                    header.col(|ui| { ui.label("BUSRQ"); });
-                    header.col(|ui| { ui.label("BUSAK"); });
-                    header.col(|ui| { ui.label("WAIT"); });
-                    header.col(|ui| { ui.label("HALT"); });
-                    header.col(|ui| { ui.label("INT"); });
-                    header.col(|ui| { ui.label("NMI"); });
-                    header.col(|ui| { ui.label("RESET"); });
+                    for &label in &headers {
+                        header.col(|ui| { ui.label(label); });
+                    }
                 })
                 .body(|mut body| {
-
-                    for reading in self.logger.readings.borrow().iter_to_tail() {
+                    for reading in self.logger.readings.borrow().iter_to_tail().take(32) {
                         body.row(text_height, |mut row| {
                             row.col(|ui| { ui.label(format!("{}", reading.htcyc)); });
-                            row.col(|ui| { if let Some(addr) = reading.addr { ui.label(format!("{:04X}", addr)); } else { ui.colored_label(Color32::GRAY, "----"); } });
-                            row.col(|ui| { if let Some(data) = reading.data { ui.label(format!("{:02X}", data)); } else { ui.colored_label(Color32::GRAY, "--"); } });
-                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::RD) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::WR) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::MREQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::IORQ) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(ctrl) = reading.ctrl { ui.label(if ctrl.contains(Ctrl::RFSH) { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(m1) = reading.m1 { ui.label(if m1 { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(busrq) = reading.busrq { ui.label(if busrq { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(busak) = reading.busak { ui.label(if busak { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(wait) = reading.wait { ui.label(if wait { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(halt) = reading.halt { ui.label(if halt { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(int) = reading.int { ui.label(if int { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(nmi) = reading.nmi { ui.label(if nmi { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
-                            row.col(|ui| { if let Some(reset) = reading.reset { ui.label(if reset { "H" } else { "L" }); } else { ui.colored_label(Color32::GRAY, "-"); } });
+                            row.col(|ui| { self.hex_cell(ui, reading.addr, "----"); });
+                            row.col(|ui| { self.hex_cell(ui, reading.data, "--"); });
+                            row.col(|ui| { self.ctrl_cell(ui, reading.ctrl, Ctrl::RD); });
+                            row.col(|ui| { self.ctrl_cell(ui, reading.ctrl, Ctrl::WR); });
+                            row.col(|ui| { self.ctrl_cell(ui, reading.ctrl, Ctrl::MREQ); });
+                            row.col(|ui| { self.ctrl_cell(ui, reading.ctrl, Ctrl::IORQ); });
+                            row.col(|ui| { self.ctrl_cell(ui, reading.ctrl, Ctrl::RFSH); });
+                            row.col(|ui| { self.signal_cell(ui, reading.m1); });
+                            row.col(|ui| { self.signal_cell(ui, reading.busrq); });
+                            row.col(|ui| { self.signal_cell(ui, reading.busak); });
+                            row.col(|ui| { self.signal_cell(ui, reading.wait); });
+                            row.col(|ui| { self.signal_cell(ui, reading.halt); });
+                            row.col(|ui| { self.signal_cell(ui, reading.int); });
+                            row.col(|ui| { self.signal_cell(ui, reading.nmi); });
+                            row.col(|ui| { self.signal_cell(ui, reading.reset); });
                         });
                     }
-
                 });
 
         })

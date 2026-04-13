@@ -8,17 +8,17 @@ use crate::{
 #[derive(Default, Clone, Copy)]
 pub struct BusState {
     pub htcyc: u64,
-    pub addr: Option<u16>,
-    pub data: Option<u8>,
-    pub ctrl: Option<Ctrl>,
-    pub m1: Option<bool>,
-    pub busak: Option<bool>,
-    pub halt: Option<bool>,
-    pub wait: Option<bool>,
-    pub int: Option<bool>,
-    pub nmi: Option<bool>,
-    pub reset: Option<bool>,
-    pub busrq: Option<bool>,
+    pub addr: Option<(usize, u16)>,
+    pub data: Option<(usize, u8)>,
+    pub ctrl: Option<(usize, Ctrl)>,
+    pub m1: Option<(usize, bool)>,
+    pub busak: Option<(usize, bool)>,
+    pub halt: Option<(usize, bool)>,
+    pub wait: Option<(usize, bool)>,
+    pub int: Option<(usize, bool)>,
+    pub nmi: Option<(usize, bool)>,
+    pub reset: Option<(usize, bool)>,
+    pub busrq: Option<(usize, bool)>,
 }
 
 /// CPU bus logger
@@ -49,17 +49,17 @@ impl Device for BusLogger {
 
                 let state = BusState {
                     htcyc: self.clock.get(),
-                    addr: self.bus.addr.probe(),
-                    data: self.bus.data.probe(),
-                    ctrl: self.bus.ctrl.probe(),
-                    m1: self.bus.m1.probe(),
-                    busak: self.bus.busak.probe(),
-                    halt: self.bus.halt.probe(),
-                    wait: self.bus.wait.probe(),
-                    int: self.bus.int.probe(),
-                    nmi: self.bus.nmi.probe(),
-                    reset: self.bus.reset.probe(),
-                    busrq: self.bus.busrq.probe(),
+                    addr: self.bus.addr.state(),
+                    data: self.bus.data.state(),
+                    ctrl: self.bus.ctrl.state(),
+                    m1: self.bus.m1.state(),
+                    busak: self.bus.busak.state(),
+                    halt: self.bus.halt.state(),
+                    wait: self.bus.wait.state(),
+                    int: self.bus.int.state(),
+                    nmi: self.bus.nmi.state(),
+                    reset: self.bus.reset.state(),
+                    busrq: self.bus.busrq.state(),
                 };
 
                 self.readings.borrow_mut().push(state);

@@ -70,14 +70,13 @@ impl Device for Cpu {
 
                     let pc = self.rp(RegPair::PC).get();
 
-                    // Process possible interrupts
-                    if self.nmi.get() || self.int.get() {
-                        self.bus.halt.drive(self, false);
-                    }
-
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
                         TokenType::Opcode => {
+                            // Process possible interrupts
+                            if self.nmi.get() || self.int.get() {
+                                self.bus.halt.drive(self, false);
+                            }
                             if self.nmi.get() {
                                 // Handle non maskable interrupt: push PC, jump to 0x0066
                                 self.nmi.set(false);
@@ -252,7 +251,10 @@ impl Device for Cpu {
                     Token::ALU(op, maybe_reg) => {
                         let lhs = self.rg(Reg::A).get();
                         let rhs = if let Some(reg) = maybe_reg {
-                            self.rg(reg).get()
+                            if matches!(reg, Reg::AtIX | Reg::AtIY) {
+                                yield self.clock.rising(5); // index calculation delay
+                            }
+                            yield_from!(self.read_register(reg, instruction.displacement))
                         } else {
                             instruction.expect_byte_data()
                         };
@@ -261,16 +263,16 @@ impl Device for Cpu {
                             AluOp::ADD | AluOp::ADC => {
                                 let (result, carry) = lhs.carrying_add(rhs, op == AluOp::ADC && flags.contains(Flags::C));
                                 flags.set(Flags::C, carry);
-                                flags.set(Flags::P, (lhs as i8).overflowing_add(rhs as i8).1);
-                                flags.set(Flags::H, (lhs << 4).overflowing_add(rhs << 4).1);
+                                flags.set(Flags::P, (!(lhs ^ rhs) & (lhs ^ result)) & 0x80 != 0);
+                                flags.set(Flags::H, (lhs ^ rhs ^ result) & 0x10 != 0);
                                 result
                             },
                             AluOp::CP | AluOp::SUB | AluOp::SBC => {
                                 flags.insert(Flags::N);
                                 let (result, carry) = lhs.borrowing_sub(rhs, op == AluOp::SBC && flags.contains(Flags::C));
                                 flags.set(Flags::C, carry);
-                                flags.set(Flags::P, (lhs as i8).overflowing_sub(rhs as i8).1);
-                                flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
+                                flags.set(Flags::P, ((lhs ^ rhs) & (lhs ^ result)) & 0x80 != 0);
+                                flags.set(Flags::H, (lhs ^ rhs ^ result) & 0x10 != 0);
                                 result
                             },
                             AluOp::AND | AluOp::XOR | AluOp::OR => {
@@ -293,7 +295,12 @@ impl Device for Cpu {
                     },
 
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
-                        let value = self.rg(reg).get();
+                        match reg {
+                            Reg::AtIX | Reg::AtIY => { yield self.clock.rising(6); }, // 5T index calc + 1T MR extension
+                            Reg::AtHL => { yield self.clock.rising(1); }, // 1T MR extension
+                            _ => {}
+                        }
+                        let value = yield_from!(self.read_register(reg, instruction.displacement));
                         let mut flags = self.get_flags() & Flags::C;
                         let result = if let Token::INC_RG(..) = instruction.opcode {
                             flags.set(Flags::P, (value as i8).overflowing_add(1 as i8).1);
@@ -308,7 +315,7 @@ impl Device for Cpu {
                         flags |= Flags::from(result) & Flags::XY;
                         flags.set_zs_flags_u8(result);
                         self.set_flags(flags);
-                        self.rg(Reg::A).set(result);
+                        yield_from!(self.write_register(reg, result, instruction.displacement));
                     },
 
                     // General-Purpose Arithmetic and CPU Control
@@ -354,7 +361,7 @@ impl Device for Cpu {
                         flags.set(Flags::H, (0 as u8).overflowing_sub(value << 4).1);
                         flags.set_zs_flags_u8(result);
                         self.set_flags(flags);
-                        self.rg(Reg::A).set(value);
+                        self.rg(Reg::A).set(result);
                     },
                     Token::CCF => {
                         self.set_flags(self.get_flags() ^ Flags::C);
@@ -396,12 +403,13 @@ impl Device for Cpu {
                         yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
-                        let mut flags = Flags::NONE;
+                        let mut flags = self.get_flags();
                         let (result, carry) = lhs.carrying_add(rhs, flags.contains(Flags::C));
+                        flags = Flags::NONE;
                         flags.set_zs_flags_u16(result);
                         flags.set(Flags::C, carry);
-                        flags.set(Flags::P, (lhs as i16).overflowing_add(rhs as i16).1);
-                        flags.set(Flags::H, (lhs << 4).overflowing_add(rhs << 4).1);
+                        flags.set(Flags::P, (!(lhs ^ rhs) & (lhs ^ result)) & 0x8000 != 0);
+                        flags.set(Flags::H, (lhs ^ rhs ^ result) & 0x1000 != 0);
                         self.rp(RegPair::HL).set(result);
                         self.set_flags(flags);
                     },
@@ -409,12 +417,13 @@ impl Device for Cpu {
                         yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
-                        let mut flags = Flags::NONE;
+                        let mut flags = self.get_flags();
                         let (result, carry) = lhs.borrowing_sub(rhs, flags.contains(Flags::C));
+                        flags = Flags::NONE;
                         flags.set_zs_flags_u16(result);
                         flags.set(Flags::C, carry);
-                        flags.set(Flags::P, (lhs as i16).overflowing_sub(rhs as i16).1);
-                        flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
+                        flags.set(Flags::P, ((lhs ^ rhs) & (lhs ^ result)) & 0x8000 != 0);
+                        flags.set(Flags::H, (lhs ^ rhs ^ result) & 0x1000 != 0);
                         self.rp(RegPair::HL).set(result);
                         self.set_flags(flags);
                     },
@@ -430,7 +439,13 @@ impl Device for Cpu {
                     // Rotate and Shift
 
                     Token::SHOP(op, reg, maybe_dst) => {
+                        if matches!(reg, Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
+                        if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                        }
 
                         let mut flags = self.get_flags() & !(Flags::H | Flags::N);
 
@@ -544,7 +559,13 @@ impl Device for Cpu {
                     // Bit Set, Reset and Test
 
                     Token::BIT(bit, reg) => {
+                        if matches!(reg, Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
+                        if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                        }
                         let mut flags = self.get_flags() | Flags::H & !Flags::N;
                         let zero = (val >> bit) & 0x1 == 0;
                         flags.set(Flags::Z, zero);
@@ -552,7 +573,13 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::SET(bit, reg, maybe_dst) | Token::RES(bit, reg, maybe_dst) => {
+                        if matches!(reg, Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
+                        if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
+                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                        }
 
                         let result = if let Token::SET(..) = instruction.opcode {
                             val | (0x1 << bit)
@@ -1045,16 +1072,13 @@ impl Cpu {
         #[coroutine] move || {
             match reg {
                 Reg::AtHL => {
-                    let val  = yield_from!(self.memory_read(self.rp(RegPair::HL).get()));
-                    yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                    let addr = self.rp(RegPair::HL).get();
+                    let val  = yield_from!(self.memory_read(addr));
                     val
                 },
                 Reg::AtIX | Reg::AtIY => {
-                    yield self.clock.rising(1); // complement M4 to 5 t-cycles
-                    let val = yield_from!(self.memory_read(
-                        self.idx_addr(reg, displacement.unwrap())
-                    ));
-                    yield self.clock.rising(1); // complement M5 to 4 t-cycles
+                    let addr = self.idx_addr(reg, displacement.unwrap());
+                    let val = yield_from!(self.memory_read(addr));
                     val
                 },
                 reg => self.rg(reg).get(),
@@ -1066,13 +1090,12 @@ impl Cpu {
         #[coroutine] move || {
             match reg {
                 Reg::AtHL => {
-                    yield_from!(self.memory_write(self.rp(RegPair::HL).get(), value));
+                    let addr = self.rp(RegPair::HL).get();
+                    yield_from!(self.memory_write(addr, value));
                 },
                 Reg::AtIX | Reg::AtIY => {
-                    yield_from!(self.memory_write(
-                        self.idx_addr(reg, displacement.unwrap()),
-                        value
-                    ));
+                    let addr = self.idx_addr(reg, displacement.unwrap());
+                    yield_from!(self.memory_write(addr, value));
                 },
                 reg => self.rg(reg).set(value),
             }

@@ -17,7 +17,7 @@ use std::{
 };
 
 mod windows;
-use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow, BusWindow};
+use windows::{SubWindow, CpuWindow, DisassmWindow, MemoryWindow, BusWindow, DisplayWindow};
 
 struct EmulApp<'a> {
     windows: Vec<(bool, Box<dyn SubWindow + 'a>)>,
@@ -89,6 +89,7 @@ fn main() {
             (true, Box::new(DisassmWindow::new(Rc::clone(&cpu), Rc::clone(&mem)))),
             (true, Box::new(MemoryWindow::new(Rc::clone(&mem)))),
             (true, Box::new(BusWindow::new(Rc::clone(&logger), Rc::clone(&device_manager)))),
+            (true, Box::new(DisplayWindow::new(Rc::clone(&mem)))),
         ],
         focus: 0,
     });

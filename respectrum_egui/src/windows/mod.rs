@@ -9,6 +9,8 @@ mod disassm_window;
 pub use disassm_window::DisassmWindow;
 mod memory_window;
 pub use memory_window::MemoryWindow;
+mod display_window;
+pub use display_window::DisplayWindow;
 
 pub trait SubWindow {
 

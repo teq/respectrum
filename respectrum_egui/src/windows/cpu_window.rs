@@ -15,7 +15,7 @@ impl<'a> CpuWindow<'a> {
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {
-        if input.key_pressed(Key::Enter) {
+        if input.key_pressed(Key::Space) {
             self.scheduler.borrow_mut().advance(1);
         }
     }

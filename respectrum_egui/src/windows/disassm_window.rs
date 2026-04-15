@@ -63,6 +63,10 @@ impl DisassmWindow {
 
     fn handle_keyboard(&mut self, input: &InputState) {
 
+        if input.key_pressed(Key::Enter) {
+            self.addr = self.cpu.pc.value().get();
+        }
+
         if input.key_pressed(Key::ArrowUp) {
             self.cursor = if input.modifiers.alt {0} else {
                 if self.cursor == 0 { self.addr = self.prev_instr(); }

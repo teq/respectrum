@@ -83,32 +83,30 @@ impl<'a> Scheduler<'a> {
         // htcycles to advance to
         let target_htcycles = self.clock.get() + offset;
 
-        // Check if next step is before target_htcycles
-        if let Some(step) = &self.head && step.htcycles < target_htcycles {
+        loop {
 
-            // Consume the step and set head to the next one
-            let Step { htcycles: task_htcycles, task_idx, next } = *self.head.take().unwrap();
-            let task = &mut self.tasks[task_idx];
-            self.head = next;
+            // Check if next step is before target_htcycles
+            if let Some(step) = &self.head && step.htcycles < target_htcycles {
 
-            // Advance to task's htcycles and continue task execution
-            self.clock.set(task_htcycles);
-            let CoroutineState::Yielded(offset) = Pin::new(task).resume(());
+                // Consume the step and set head to the next one
+                let Step { htcycles: task_htcycles, task_idx, next } = *self.head.take().unwrap();
+                let task = &mut self.tasks[task_idx];
+                self.head = next;
 
-            // Re-schedule current task with returned htcycles offset
-            Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
+                // Advance to task's htcycles and continue task execution
+                self.clock.set(task_htcycles);
+                let CoroutineState::Yielded(offset) = Pin::new(task).resume(());
 
-            // Recursively advance to the next step
-            let htcycles_left = target_htcycles - task_htcycles;
-            if htcycles_left > 0 {
-                self.advance(htcycles_left);
+                // Re-schedule current task with returned htcycles offset
+                Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
+
+            } else {
+
+                // Just advance to target_htcycles
+                self.clock.set(target_htcycles);
+                break;
+
             }
-
-        } else {
-
-            // Just advance to target_htcycles
-            self.clock.set(target_htcycles);
-
         }
 
     }

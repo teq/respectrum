@@ -6,15 +6,15 @@ use crate::{
 };
 use super::Memory;
 
-/// Standard dynamic 48k memory
-pub struct Dynamic48k {
+/// Static 48k memory
+pub struct Static48k {
     id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     memory: Vec<Cell<u8>>,
 }
 
-impl Dynamic48k {
+impl Static48k {
 
     /// Create new memory instance
     pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
@@ -34,7 +34,7 @@ impl Dynamic48k {
 
 }
 
-impl Memory for Dynamic48k {
+impl Memory for Static48k {
 
     fn writable(&self, addr: u16) -> bool {
         addr & 0xc000 != 0 // First 16KB are not writable (ROM)
@@ -52,11 +52,11 @@ impl Memory for Dynamic48k {
 
 }
 
-impl Identifiable for Dynamic48k {
+impl Identifiable for Static48k {
     fn id(&self) -> usize { self.id }
 }
 
-impl Device for Dynamic48k {
+impl Device for Static48k {
 
     fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
 
@@ -64,24 +64,29 @@ impl Device for Dynamic48k {
 
             loop {
 
-                // Wait for MREQ
-                while !self.bus.ctrl.probe().unwrap_or(Ctrl::NONE).contains(Ctrl::MREQ) {
-                    yield self.clock.rising(1);
-                }
+                let ctrl = self.bus.ctrl.probe().unwrap_or(Ctrl::NONE);
+                let mreq = ctrl.contains(Ctrl::MREQ);
+                let rd = ctrl.contains(Ctrl::RD);
+                let wr = ctrl.contains(Ctrl::WR);
 
-                let addr = self.bus.addr.expect();
-                let ctrl = self.bus.ctrl.expect();
-
-                // Perform read or write
-                if ctrl.contains(Ctrl::RD) {
+                // Memory read: drive the bus while MREQ+RD are asserted.
+                if mreq && rd && !wr {
+                    let addr = self.bus.addr.expect();
                     self.bus.data.drive(self, self.read(addr));
-                    yield self.clock.rising(3);
-                    self.bus.data.release(self);
-                } else if ctrl.contains(Ctrl::WR) {
-                    let byte = self.bus.data.expect();
-                    self.write(addr, byte);
-                    yield self.clock.rising(2);
                 }
+
+                // Memory write: drive the bus while MREQ+WR are asserted.
+                else if mreq && wr && !rd {
+                    self.bus.data.release(self);
+                    self.write(self.bus.addr.expect(), self.bus.data.expect());
+                }
+
+                // Any non-memory cycle or ambiguous control state.
+                else {
+                    self.bus.data.release(self);
+                }
+
+                yield self.clock.rising(1);
 
             }
 

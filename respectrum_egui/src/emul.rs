@@ -71,7 +71,7 @@ fn main() {
     let device_manager = Rc::new(DeviceManager::new(Rc::clone(&bus), Rc::clone(&clock)));
     let cpu = device_manager.create_cpu();
     let mem: Rc<dyn Memory> = {
-        let mem = device_manager.create_dynamic_48k();
+        let mem = device_manager.create_48k_memory();
         let mut buffer: Vec<u8> = Vec::new();
         File::open("roms/48.rom").unwrap().read_to_end(&mut buffer).unwrap();
         mem.load(0, &buffer);

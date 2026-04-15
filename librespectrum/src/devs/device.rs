@@ -52,10 +52,10 @@ impl DeviceManager {
         cpu
     }
 
-    /// Create a new Dynamic 48k memory instance
-    pub fn create_dynamic_48k(&self) -> Rc<devs::mem::Dynamic48k> {
-        let memory = Rc::new(devs::mem::Dynamic48k::new(self.generate_id(), self.bus.clone(), self.clock.clone()));
-        self.register_name(memory.id(), "Dynamic 48K Memory");
+    /// Create a new 48k memory instance
+    pub fn create_48k_memory(&self) -> Rc<devs::mem::Static48k> {
+        let memory = Rc::new(devs::mem::Static48k::new(self.generate_id(), self.bus.clone(), self.clock.clone()));
+        self.register_name(memory.id(), "Static 48K Memory");
         memory
     }
 

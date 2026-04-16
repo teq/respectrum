@@ -33,13 +33,12 @@ impl fmt::Debug for Step {
 impl Step {
     /// Schedule given task at given htcycles
     fn schedule(head: &mut Option<Box<Step>>, htcycles: u64, task_idx: usize) {
-        match head {
-            Some(step) if step.htcycles > htcycles => {
-                *head = Some(Box::new(Step { htcycles, task_idx, next: head.take() }));
-            },
-            Some(step) => Step::schedule(&mut step.next, htcycles, task_idx),
-            None => *head = Some(Box::new(Step { htcycles, task_idx, next: None }))
+        let mut cursor = head;
+        while cursor.as_ref().is_some_and(|step| step.htcycles <= htcycles) {
+            cursor = &mut cursor.as_mut().unwrap().next;
         }
+        let next = cursor.take();
+        *cursor = Some(Box::new(Step { htcycles, task_idx, next }));
     }
 }
 
@@ -67,14 +66,12 @@ impl<'a> Scheduler<'a> {
 
     /// Create new scheduler instance
     pub fn new(clock: Rc<Clock>, tasks: Vec<Box<dyn NoReturnTask + 'a>>) -> Self {
-        fn init(htcycles: u64, i: usize) -> Option<Box<Step>> {
-            if i == 0 {None} else {
-                Some(Box::new(Step { htcycles, task_idx: i-1, next: init(htcycles, i-1) }))
-            }
-        }
         let htcycles = clock.get();
-        let tasks_len = tasks.len();
-        Self { clock, tasks, head: init(htcycles, tasks_len) }
+        let mut head = None;
+        for task_idx in 0..tasks.len() {
+            head = Some(Box::new(Step { htcycles, task_idx, next: head }));
+        }
+        Self { clock, tasks, head }
     }
 
     /// Advance N half t-cycles forward

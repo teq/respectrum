@@ -59,16 +59,18 @@ impl Device for Cpu {
             self.bus.busak.drive(self, false);
             self.bus.halt.drive(self, false);
 
+            let mut pc = self.rp(RegPair::PC).get();
+
             // Instruction loop
             'fetch: loop {
+
+                self.rp(RegPair::PC).set(pc);
 
                 let mut decoder = instruction_decoder();
                 let mut upnext = TokenType::Opcode;
 
                 // Instruction decode loop
                 let instruction = loop {
-
-                    let pc = self.rp(RegPair::PC).get();
 
                     // Read the next byte using appropriate M-cycle
                     let byte: u8 = match upnext {
@@ -82,7 +84,7 @@ impl Device for Cpu {
                                 self.nmi.set(false);
                                 self.iff1.set(false);
                                 yield_from!(self.stack_push(pc));
-                                self.rp(RegPair::PC).set(0x0066);
+                                pc = 0x0066;
                                 continue 'fetch;
                             } else if self.int.get() && self.iff1.get() {
                                 // Handle maskable interrupt
@@ -97,7 +99,7 @@ impl Device for Cpu {
                                     IntMode::IM1 => {
                                         // Push PC and jump to fixed address 0x0038
                                         yield_from!(self.stack_push(pc));
-                                        self.rp(RegPair::PC).set(0x0038);
+                                        pc = 0x0038;
                                         continue 'fetch;
                                     },
                                     IntMode::IM2 => {
@@ -106,7 +108,7 @@ impl Device for Cpu {
                                         let vec_addr = mkword!(self.rg(Reg::I).get(), vec_byte);
                                         let lo = yield_from!(self.memory_read(vec_addr));
                                         let hi = yield_from!(self.memory_read(vec_addr.wrapping_add(1)));
-                                        self.rp(RegPair::PC).set(mkword!(hi, lo));
+                                        pc = mkword!(hi, lo);
                                         continue 'fetch;
                                     },
                                 }
@@ -118,7 +120,7 @@ impl Device for Cpu {
                         TokenType::Displacement | TokenType::Data => yield_from!(self.memory_read(pc))
                     };
 
-                    self.rp(RegPair::PC).set(pc.wrapping_add(1));
+                    pc = pc.wrapping_add(1);
 
                     match Pin::new(&mut decoder).resume(byte) {
                         CoroutineState::Yielded(result) => upnext = result.upnext,
@@ -237,14 +239,52 @@ impl Device for Cpu {
 
                     // Block transfer, search group
 
-                    Token::BLOP(BlockOp::LDI)  => yield_from!(self.memory_copy_block( 1, false)),
-                    Token::BLOP(BlockOp::LDD)  => yield_from!(self.memory_copy_block(-1, false)),
-                    Token::BLOP(BlockOp::LDIR) => yield_from!(self.memory_copy_block( 1, true)),
-                    Token::BLOP(BlockOp::LDDR) => yield_from!(self.memory_copy_block(-1, true)),
-                    Token::BLOP(BlockOp::CPI)  => yield_from!(self.memory_cmp_block ( 1, false)),
-                    Token::BLOP(BlockOp::CPD)  => yield_from!(self.memory_cmp_block (-1, false)),
-                    Token::BLOP(BlockOp::CPIR) => yield_from!(self.memory_cmp_block ( 1, true)),
-                    Token::BLOP(BlockOp::CPDR) => yield_from!(self.memory_cmp_block (-1, true)),
+                    Token::BLOP(op @ (BlockOp::LDI | BlockOp::LDD | BlockOp::LDIR | BlockOp::LDDR))  => {
+                        let src = self.rp(RegPair::HL).get();
+                        let dst = self.rp(RegPair::DE).get();
+                        let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
+                        let val = yield_from!(self.memory_read(src));
+                        yield_from!(self.memory_write(dst, val));
+                        yield self.clock.rising(2); // complement MW to 5 t-cycles
+                        let increment = matches!(op, BlockOp::LDI | BlockOp::LDIR);
+                        self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
+                        self.rp(RegPair::DE).update(|de| if increment { de.wrapping_add(1) } else { de.wrapping_sub(1) });
+                        self.rp(RegPair::BC).set(ctr);
+                        let n = self.rg(Reg::A).get().wrapping_add(val);
+                        let mut flags = self.get_flags() & Flags::C;
+                        flags.set(Flags::P, ctr != 0);
+                        flags.set(Flags::Y, n & (1 << 1) != 0);
+                        flags.set(Flags::X, n & (1 << 3) != 0);
+                        self.set_flags(flags);
+                        if matches!(op, BlockOp::LDIR | BlockOp::LDDR) && flags.contains(Flags::P) { // repeat
+                            yield self.clock.rising(5);
+                            pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
+                        }
+                    },
+
+                    Token::BLOP(op @ (BlockOp::CPI | BlockOp::CPD | BlockOp::CPIR | BlockOp::CPDR))  => {
+                        let src = self.rp(RegPair::HL).get();
+                        let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
+                        let lhs = self.rg(Reg::A).get();
+                        let rhs = yield_from!(self.memory_read(src));
+                        yield self.clock.rising(5);
+                        let increment = matches!(op, BlockOp::CPI | BlockOp::CPIR);
+                        self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
+                        self.rp(RegPair::BC).set(ctr);
+                        let mut n = lhs.wrapping_sub(rhs);
+                        let mut flags = (self.get_flags() & Flags::C) | Flags::N;
+                        flags.set_zs_flags_u8(n);
+                        flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
+                        if flags.contains(Flags::H) { n = n.wrapping_sub(1); }
+                        flags.set(Flags::P, ctr != 0);
+                        flags.set(Flags::Y, n & (1 << 1) != 0);
+                        flags.set(Flags::X, n & (1 << 3) != 0);
+                        self.set_flags(flags);
+                        if matches!(op, BlockOp::CPIR | BlockOp::CPDR) && flags.contains(Flags::P) { // repeat
+                            yield self.clock.rising(5);
+                            pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
+                        }
+                    },
 
                     // 8-bit arithmetic and logic
 
@@ -372,7 +412,7 @@ impl Device for Cpu {
                     Token::NOP => {},
                     Token::HALT => {
                         self.bus.halt.drive(self, true);
-                        self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(1)); // rewind PC 1 byte back
+                        pc = pc.wrapping_sub(1); // rewind PC 1 byte back
                     },
                     Token::DI => {
                         self.iff1.set(false);
@@ -600,18 +640,17 @@ impl Device for Cpu {
 
                     Token::JP(cond) => {
                         if self.get_flags().satisfy(cond) {
-                            let dst = instruction.expect_word_data();
-                            self.rp(RegPair::PC).set(dst);
+                            pc = instruction.expect_word_data();
                         }
                     },
                     Token::JP_RP(rpair) => {
-                        self.rp(RegPair::PC).set(self.rp(rpair).get());
+                        pc = self.rp(rpair).get();
                     },
                     Token::JR(cond) => {
                         if self.get_flags().satisfy(cond) {
                             yield self.clock.rising(5); // M3 = 5 T-cycles
                             let offset = instruction.displacement.unwrap();
-                            self.rp(RegPair::PC).update(|pc| pc.wrapping_add_signed(offset as i16));
+                            pc = pc.wrapping_add_signed(offset as i16);
                         }
                     },
                     Token::DJNZ => {
@@ -619,23 +658,23 @@ impl Device for Cpu {
                         if self.rg(Reg::B).get() != 0 {
                             yield self.clock.rising(5); // M3 = 5 T-cycles
                             let offset = instruction.displacement.unwrap();
-                            self.rp(RegPair::PC).update(|pc| pc.wrapping_add_signed(offset as i16));
+                            pc = pc.wrapping_add_signed(offset as i16);
                         }
                     },
                     Token::CALL(cond) => {
                         if self.get_flags().satisfy(cond) {
                             yield self.clock.rising(1); // complement M3 to 4 t-cycles
-                            yield_from!(self.stack_push(self.rp(RegPair::PC).get()));
-                            self.rp(RegPair::PC).set(instruction.expect_word_data());
+                            yield_from!(self.stack_push(pc));
+                            pc = instruction.expect_word_data();
                         }
                     },
                     Token::RET(Condition::None) => {
-                        self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
+                        pc = yield_from!(self.stack_pop());
                     },
                     Token::RET(cond) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
                         if self.get_flags().satisfy(cond) {
-                            self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
+                            pc = yield_from!(self.stack_pop());
                         }
                     },
                     Token::RETN | Token::RETI => {
@@ -643,12 +682,12 @@ impl Device for Cpu {
                         // RETI should behave like RET (not copying IFF2 to IFF1).
                         // But in practice it copies it the same way as RETN.
                         self.iff1.set(self.iff2.get());
-                        self.rp(RegPair::PC).set(yield_from!(self.stack_pop()));
+                        pc = yield_from!(self.stack_pop());
                     },
                     Token::RST(addr) => {
                         yield self.clock.rising(1); // complement M1 to 5 t-cycles
-                        yield_from!(self.stack_push(self.rp(RegPair::PC).get()));
-                        self.rp(RegPair::PC).set(addr as u16);
+                        yield_from!(self.stack_push(pc));
+                        pc = addr as u16;
                     },
 
                     // IO group
@@ -677,14 +716,44 @@ impl Device for Cpu {
                         let addr = self.rp(RegPair::BC).get();
                         yield_from!(self.io_write(addr, 0));
                     },
-                    Token::BLOP(BlockOp::INI)  => yield_from!(self.io_read_block ( 1, false)),
-                    Token::BLOP(BlockOp::OUTI) => yield_from!(self.io_write_block( 1, false)),
-                    Token::BLOP(BlockOp::IND)  => yield_from!(self.io_read_block (-1, false)),
-                    Token::BLOP(BlockOp::OUTD) => yield_from!(self.io_write_block(-1, false)),
-                    Token::BLOP(BlockOp::INIR) => yield_from!(self.io_read_block ( 1, true)),
-                    Token::BLOP(BlockOp::OTIR) => yield_from!(self.io_write_block( 1, true)),
-                    Token::BLOP(BlockOp::INDR) => yield_from!(self.io_read_block (-1, true)),
-                    Token::BLOP(BlockOp::OTDR) => yield_from!(self.io_write_block(-1, true)),
+                    Token::BLOP(op @ (BlockOp::INI | BlockOp::IND | BlockOp::INIR | BlockOp::INDR))  => {
+                        let src = self.rp(RegPair::BC).get();
+                        let dst = self.rp(RegPair::HL).get();
+                        let ctr = self.rg(Reg::B).get().wrapping_sub(1);
+                        yield self.clock.rising(1); // complement M2 to 5 t-cycles
+                        let val = yield_from!(self.io_read(src));
+                        yield_from!(self.memory_write(dst, val));
+                        yield self.clock.rising(1); // complement M4 to 4 t-cycles
+                        let increment = matches!(op, BlockOp::INI | BlockOp::INIR);
+                        self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
+                        self.rg(Reg::B).set(ctr);
+                        let mut flags = (self.get_flags() & Flags::C) | Flags::N;
+                        flags.set_zs_flags_u8(ctr);
+                        self.set_flags(flags);
+                        if matches!(op, BlockOp::INIR | BlockOp::INDR) && !flags.contains(Flags::Z) { // repeat
+                            yield self.clock.rising(5);
+                            pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
+                        }
+                    },
+                    Token::BLOP(op @ (BlockOp::OUTI | BlockOp::OUTD | BlockOp::OTIR | BlockOp::OTDR)) => {
+                        let src = self.rp(RegPair::HL).get();
+                        let dst = self.rp(RegPair::BC).get();
+                        let ctr = self.rg(Reg::B).get().wrapping_sub(1);
+                        yield self.clock.rising(1); // complement M2 to 5 t-cycles
+                        let val = yield_from!(self.memory_read(src));
+                        yield_from!(self.io_write(dst, val));
+                        yield self.clock.rising(1); // complement M4 to 4 t-cycles
+                        let increment = matches!(op, BlockOp::OUTI | BlockOp::OTIR);
+                        self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
+                        self.rg(Reg::B).set(ctr);
+                        let mut flags = (self.get_flags() & Flags::C) | Flags::N;
+                        flags.set_zs_flags_u8(ctr);
+                        self.set_flags(flags);
+                        if matches!(op, BlockOp::OTIR | BlockOp::OTDR) && !flags.contains(Flags::Z) { // repeat
+                            yield self.clock.rising(5);
+                            pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
+                        }
+                    },
 
                     // Non-opcode is not expected
 
@@ -929,57 +998,6 @@ impl Cpu {
         }
     }
 
-    /// Copy memory byte (DE)<-(HL), inc or dec HL&DE, dec BC
-    fn memory_copy_block<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
-        #[coroutine] move || {
-            let src = self.rp(RegPair::HL).get();
-            let dst = self.rp(RegPair::DE).get();
-            let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
-            let val = yield_from!(self.memory_read(src));
-            yield_from!(self.memory_write(dst, val));
-            yield self.clock.rising(2); // complement MW to 5 t-cycles
-            self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
-            self.rp(RegPair::DE).set(dst.wrapping_add(increment as u16));
-            self.rp(RegPair::BC).set(ctr);
-            let n = self.rg(Reg::A).get().wrapping_add(val);
-            let mut flags = self.get_flags() & Flags::C;
-            flags.set(Flags::P, ctr != 0);
-            flags.set(Flags::Y, n & (1 << 1) != 0);
-            flags.set(Flags::X, n & (1 << 3) != 0);
-            self.set_flags(flags);
-            if repeat && flags.contains(Flags::P) {
-                yield self.clock.rising(5);
-                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
-            }
-        }
-    }
-
-    /// Compare A against (HL), inc or dec HL, dec BC
-    fn memory_cmp_block<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
-        #[coroutine] move || {
-            let src = self.rp(RegPair::HL).get();
-            let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
-            let lhs = self.rg(Reg::A).get();
-            let rhs = yield_from!(self.memory_read(src));
-            yield self.clock.rising(5);
-            self.rp(RegPair::HL).set(src.wrapping_add(increment as u16));
-            self.rp(RegPair::BC).set(ctr);
-            let mut n = lhs.wrapping_sub(rhs);
-            let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags_u8(n);
-            flags.set(Flags::H, (lhs << 4).overflowing_sub(rhs << 4).1);
-            if flags.contains(Flags::H) { n = n.wrapping_sub(1); }
-            flags.set(Flags::P, ctr != 0);
-            flags.set(Flags::Y, n & (1 << 1) != 0);
-            flags.set(Flags::X, n & (1 << 3) != 0);
-            self.set_flags(flags);
-            if repeat && flags.contains(Flags::P) {
-                yield self.clock.rising(5);
-                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
-            }
-        }
-    }
-
     /// IO read m-cycle. Takes 3 t-cycles.
     fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
@@ -1021,50 +1039,6 @@ impl Cpu {
             yield self.clock.falling(1); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
             if busrq { yield_from!(self.process_busrq()); }
-        }
-    }
-
-    /// Reads port at (BC) and writes it to memory at (HL), inc or dec HL, dec B
-    fn io_read_block<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
-        #[coroutine] move || {
-            let src = self.rp(RegPair::BC).get();
-            let dst = self.rp(RegPair::HL).get();
-            let ctr = self.rg(Reg::B).get().wrapping_sub(1);
-            yield self.clock.rising(1); // complement M2 to 5 t-cycles
-            let val = yield_from!(self.io_read(src));
-            yield_from!(self.memory_write(dst, val));
-            yield self.clock.rising(1); // complement M4 to 4 t-cycles
-            self.rp(RegPair::HL).set(dst.wrapping_add(increment as u16));
-            self.rg(Reg::B).set(ctr);
-            let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags_u8(ctr);
-            self.set_flags(flags);
-            if repeat && !flags.contains(Flags::Z) {
-                yield self.clock.rising(5);
-                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
-            }
-        }
-    }
-
-    /// Reads memory byte at (HL) and outputs it to port (BC), inc or dec HL, dec B
-    fn io_write_block<'a>(&'a self, increment: i8, repeat: bool) -> impl Task<()> + 'a {
-        #[coroutine] move || {
-            let src = self.rp(RegPair::HL).get();
-            let dst = self.rp(RegPair::BC).get();
-            let ctr = self.rg(Reg::B).get().wrapping_sub(1);
-            yield self.clock.rising(1); // complement M2 to 5 t-cycles
-            let val = yield_from!(self.memory_read(src));
-            yield_from!(self.io_write(dst, val));
-            yield self.clock.rising(1); // complement M4 to 4 t-cycles
-            self.rp(RegPair::HL).set(dst.wrapping_add(increment as u16));
-            self.rg(Reg::B).set(ctr);
-            let mut flags = (self.get_flags() & Flags::C) | Flags::N;
-            flags.set_zs_flags_u8(ctr);
-            self.set_flags(flags);
-            if repeat && !flags.contains(Flags::Z) {
-                yield self.clock.rising(5);
-                self.rp(RegPair::PC).update(|pc| pc.wrapping_sub(2)); // rewind PC 2 bytes back
-            }
         }
     }
 

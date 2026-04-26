@@ -2,7 +2,7 @@ use std::{
     rc::Rc,
     pin::Pin,
     cell::Cell,
-    ops::{Coroutine, CoroutineState},
+    ops::{Coroutine, CoroutineState, Deref},
 };
 
 use crate::{
@@ -18,10 +18,9 @@ use crate::{
 
 use super::Device;
 
-/// Z80 CPU
+/// Z80 CPU registers and state
 #[derive(Default)]
-pub struct Cpu {
-    id: usize,
+pub struct CpuState {
     pub af: U16Cell,
     pub bc: U16Cell,
     pub de: U16Cell,
@@ -40,8 +39,23 @@ pub struct Cpu {
     pub im: Cell<IntMode>,
     pub int: Cell<bool>,
     pub nmi: Cell<bool>,
+}
+
+/// Z80 CPU
+#[derive(Default)]
+pub struct Cpu {
+    id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
+    pub state: CpuState,
+}
+
+impl Deref for Cpu {
+    type Target = CpuState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
 }
 
 impl Identifiable for Cpu {

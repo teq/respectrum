@@ -1,7 +1,5 @@
 use std::{
-    fmt,
-    cell::Cell,
-    mem::ManuallyDrop,
+    cell::Cell, fmt, mem::ManuallyDrop
 };
 
 #[repr(C)]

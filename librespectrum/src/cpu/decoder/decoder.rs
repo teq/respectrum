@@ -1,14 +1,11 @@
 use std::{
-    pin::Pin,
-    ops::{Coroutine, CoroutineState},
+    ops::{Coroutine, CoroutineState}, pin::Pin
 };
 
 use crate::{
-    mkword,
     cpu::tokens::{
-        Token, TokenType, DataValue, Reg, RegPair,
-        IntMode, BlockOp, ShiftOp, AluOp, Condition
-    },
+        AluOp, BlockOp, Condition, DataValue, IntMode, Reg, RegPair, ShiftOp, Token, TokenType
+    }, mkword
 };
 
 use super::Instruction;

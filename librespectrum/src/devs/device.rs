@@ -1,8 +1,7 @@
 use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
+
 use crate::{
-    devs,
-    bus::{NoReturnTask, CpuBus, Clock},
-    misc::Identifiable,
+    core::{Clock, CpuBus, Identifiable, NoReturnTask}, devs
 };
 
 pub trait Device: Identifiable {

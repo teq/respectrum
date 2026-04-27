@@ -1,6 +1,6 @@
 use egui::*;
 use egui_extras::{Size, TableBuilder};
-use librespectrum::{devs::{BusLogger, DeviceManager}, bus::Ctrl};
+use librespectrum::{devs::{BusLogger, DeviceManager}, core::Ctrl};
 use std::rc::Rc;
 
 use super::{SubWindow, draw_window};

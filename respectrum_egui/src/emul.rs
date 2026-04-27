@@ -3,7 +3,7 @@
 extern crate librespectrum;
 
 use librespectrum::{
-    bus::{CpuBus, Clock, Scheduler},
+    core::{CpuBus, Clock, Scheduler},
     devs::{mem::Memory, Device, DeviceManager}
 };
 

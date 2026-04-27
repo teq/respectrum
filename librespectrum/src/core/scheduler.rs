@@ -1,8 +1,5 @@
 use std::{
-    fmt,
-    rc::Rc,
-    pin::Pin,
-    ops::{Coroutine, CoroutineState},
+    ops::{Coroutine, CoroutineState}, pin::Pin, rc::Rc
 };
 
 use super::Clock;
@@ -14,32 +11,11 @@ pub trait Task<T> = Coroutine<(), Yield=usize, Return=T> + Unpin;
 /// Task which never returns
 pub trait NoReturnTask = Task<!>;
 
-/// Task execution step
-struct Step {
+/// Task execution time slot
+struct TaskSlot {
     pub htcycles: u64,
     pub task_idx: usize,
-    pub next: Option<Box<Step>>,
-}
-
-impl fmt::Debug for Step {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.next {
-            &Some(ref step) => write!(f, "({:?},{:?}),{:?}", self.htcycles, self.task_idx, *step),
-            &None => write!(f, "({:?},{:?})", self.htcycles, self.task_idx),
-        }
-    }
-}
-
-impl Step {
-    /// Schedule given task at given htcycles
-    fn schedule(head: &mut Option<Box<Step>>, htcycles: u64, task_idx: usize) {
-        let mut cursor = head;
-        while cursor.as_ref().is_some_and(|step| step.htcycles <= htcycles) {
-            cursor = &mut cursor.as_mut().unwrap().next;
-        }
-        let next = cursor.take();
-        *cursor = Some(Box::new(Step { htcycles, task_idx, next }));
-    }
+    pub next: Option<Box<TaskSlot>>,
 }
 
 /// Clock-synced tasks scheduler
@@ -51,15 +27,9 @@ pub struct Scheduler<'a> {
     /// Managed tasks
     tasks: Vec<Box<dyn NoReturnTask + 'a>>,
 
-    /// Execution steps queue head
-    head: Option<Box<Step>>,
+    /// Task queue head
+    queue: Option<Box<TaskSlot>>,
 
-}
-
-impl fmt::Debug for Scheduler<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "clock: {:?}, queue: {:?}", self.clock.get(), self.head)
-    }
 }
 
 impl<'a> Scheduler<'a> {
@@ -67,15 +37,15 @@ impl<'a> Scheduler<'a> {
     /// Create new scheduler instance
     pub fn new(clock: Rc<Clock>, tasks: Vec<Box<dyn NoReturnTask + 'a>>) -> Self {
         let htcycles = clock.get();
-        let mut head = None;
+        let mut queue = None;
         for task_idx in 0..tasks.len() {
-            head = Some(Box::new(Step { htcycles, task_idx, next: head }));
+            queue = Some(Box::new(TaskSlot { htcycles, task_idx, next: queue }));
         }
-        Self { clock, tasks, head }
+        Self { clock, tasks, queue }
     }
 
     /// Advance N half t-cycles forward
-    pub fn advance(&mut self, offset: u64) {
+    pub fn run(&mut self, offset: u64) {
 
         // htcycles to advance to
         let target_htcycles = self.clock.get() + offset;
@@ -83,19 +53,19 @@ impl<'a> Scheduler<'a> {
         loop {
 
             // Check if next step is before target_htcycles
-            if let Some(step) = &self.head && step.htcycles < target_htcycles {
+            if let Some(step) = &self.queue && step.htcycles < target_htcycles {
 
                 // Consume the step and set head to the next one
-                let Step { htcycles: task_htcycles, task_idx, next } = *self.head.take().unwrap();
+                let TaskSlot { htcycles: task_htcycles, task_idx, next } = *self.queue.take().unwrap();
                 let task = &mut self.tasks[task_idx];
-                self.head = next;
+                self.queue = next;
 
                 // Advance to task's htcycles and continue task execution
                 self.clock.set(task_htcycles);
                 let CoroutineState::Yielded(offset) = Pin::new(task).resume(());
 
                 // Re-schedule current task with returned htcycles offset
-                Step::schedule(&mut self.head, task_htcycles + offset as u64, task_idx);
+                self.schedule(task_htcycles + offset as u64, task_idx);
 
             } else {
 
@@ -106,6 +76,16 @@ impl<'a> Scheduler<'a> {
             }
         }
 
+    }
+
+    /// Schedule given task at given htcycles
+    fn schedule(&mut self, htcycles: u64, task_idx: usize) {
+        let mut cursor = &mut self.queue;
+        while cursor.as_ref().is_some_and(|step| step.htcycles <= htcycles) {
+            cursor = &mut cursor.as_mut().unwrap().next;
+        }
+        let next = cursor.take();
+        *cursor = Some(Box::new(TaskSlot { htcycles, task_idx, next }));
     }
 
 }
@@ -160,14 +140,14 @@ mod tests {
 
         let mut scheduler = Scheduler::new(clock, vec![foo.run(), bar.run()]);
 
-        scheduler.advance(10);
+        scheduler.run(10);
         assert_eq!(
             *state.seq.borrow(),
             vec![(1, false), (3, false), (5, false), (6, true), (7, false), (9, false)]
         );
 
         state.seq.borrow_mut().clear();
-        scheduler.advance(10);
+        scheduler.run(10);
         assert_eq!(
             *state.seq.borrow(),
             vec![(11, false), (12, true), (13, false), (15, false), (17, false), (18, true), (19, false)]

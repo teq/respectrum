@@ -1,9 +1,10 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    bus::{Clock, CpuBus, Ctrl, NoReturnTask},
-    devs::Device, misc::Identifiable,
+    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask},
+    devs::Device,
 };
+
 use super::Memory;
 
 /// Static 48k memory

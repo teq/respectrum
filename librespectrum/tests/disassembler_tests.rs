@@ -1,12 +1,9 @@
-#![feature(coroutines, coroutine_trait)]
+#![feature(coroutine_trait)]
 
 extern crate librespectrum;
 
 use std::{
-    fs::File,
-    pin::Pin,
-    io::{self, BufRead},
-    ops::{Coroutine, CoroutineState}
+    fs::File, io::{self, BufRead}, ops::{Coroutine, CoroutineState}, pin::Pin
 };
 
 use librespectrum::cpu::decoder::instruction_decoder;

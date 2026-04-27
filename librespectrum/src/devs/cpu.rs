@@ -1,45 +1,14 @@
 use std::{
-    rc::Rc,
-    pin::Pin,
-    cell::Cell,
-    ops::{Coroutine, CoroutineState, Deref},
+    cell::Cell, ops::{Coroutine, CoroutineState, Deref}, pin::Pin, rc::Rc
 };
 
 use crate::{
-    mkword, spword, yield_from,
-    bus::{NoReturnTask, Clock, CpuBus, Task, Ctrl},
-    cpu::{
-        tokens::{Token, TokenType, Reg, RegPair, BlockOp, AluOp, ShiftOp, IntMode, Condition},
-        decoder::{instruction_decoder},
-        Flags,
-    },
-    misc::{U16Cell, Identifiable},
+    core::{Clock, CpuBus, CpuState, Ctrl, Identifiable, NoReturnTask, Task}, cpu::{
+        Flags, decoder::instruction_decoder, tokens::{AluOp, BlockOp, Condition, IntMode, Reg, RegPair, ShiftOp, Token, TokenType}
+    }, mkword, spword, yield_from
 };
 
 use super::Device;
-
-/// Z80 CPU registers and state
-#[derive(Default)]
-pub struct CpuState {
-    pub af: U16Cell,
-    pub bc: U16Cell,
-    pub de: U16Cell,
-    pub hl: U16Cell,
-    pub alt_af: U16Cell,
-    pub alt_bc: U16Cell,
-    pub alt_de: U16Cell,
-    pub alt_hl: U16Cell,
-    pub ix: U16Cell,
-    pub iy: U16Cell,
-    pub sp: U16Cell,
-    pub pc: U16Cell,
-    pub ir: U16Cell,
-    pub iff1: Cell<bool>,
-    pub iff2: Cell<bool>,
-    pub im: Cell<IntMode>,
-    pub int: Cell<bool>,
-    pub nmi: Cell<bool>,
-}
 
 /// Z80 CPU
 #[derive(Default)]

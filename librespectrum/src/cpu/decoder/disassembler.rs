@@ -1,6 +1,5 @@
 use std::{
-    pin::Pin,
-    ops::{Coroutine, CoroutineState},
+    ops::{Coroutine, CoroutineState}, pin::Pin
 };
 
 use super::{Instruction, instruction_decoder};

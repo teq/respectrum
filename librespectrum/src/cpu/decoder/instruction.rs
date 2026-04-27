@@ -1,9 +1,7 @@
 use std::fmt;
 
 use crate::cpu::tokens::{
-    Token, ShiftOp, BlockOp,
-    IntMode, Condition, AluOp, Reg,
-    RegPair, DataValue
+    AluOp, BlockOp, Condition, DataValue, IntMode, Reg, RegPair, ShiftOp, Token
 };
 
 /// Z80 CPU instruction

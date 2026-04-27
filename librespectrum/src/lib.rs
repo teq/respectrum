@@ -5,7 +5,6 @@
 #[macro_use]
 extern crate bitflags;
 
-pub mod bus;
+pub mod core;
 pub mod cpu;
 pub mod devs;
-pub mod misc;

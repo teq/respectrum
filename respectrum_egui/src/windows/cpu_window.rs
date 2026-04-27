@@ -1,5 +1,5 @@
 use egui::*;
-use librespectrum::{cpu::Flags, bus::Scheduler, devs::Cpu};
+use librespectrum::{cpu::Flags, core::Scheduler, devs::Cpu};
 use std::{rc::Rc, cell::RefCell};
 
 use super::{SubWindow, draw_window};
@@ -16,7 +16,7 @@ impl<'a> CpuWindow<'a> {
 
     fn handle_keyboard(&mut self, input: &InputState) {
         if input.key_pressed(Key::Space) {
-            self.scheduler.borrow_mut().advance(1);
+            self.scheduler.borrow_mut().run(1);
         }
     }
 }

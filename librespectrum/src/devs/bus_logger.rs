@@ -1,8 +1,8 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    bus::{Clock, CpuBus, NoReturnTask, Ctrl},
-    devs::Device, misc::{Identifiable, RingBuff},
+    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask, RingBuff},
+    devs::Device,
 };
 
 #[derive(Default, Clone, Copy)]

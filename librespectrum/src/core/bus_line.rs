@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use crate::misc::Identifiable;
+use super::Identifiable;
 
 /// Signal bus line
 pub struct BusLine<T> {

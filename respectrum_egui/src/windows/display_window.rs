@@ -41,9 +41,9 @@ pub struct DisplayWindow {
 
 impl DisplayWindow {
 
-    pub fn new(memory: Rc<dyn Memory>) -> Self {
+    pub fn new(memory: &Rc<dyn Memory>) -> Self {
         Self {
-            memory,
+            memory: Rc::clone(memory),
             pixels: vec![Color32::BLACK; SCREEN_W * SCREEN_H],
             scale: 2,
             texture: None,

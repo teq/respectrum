@@ -27,8 +27,14 @@ pub struct DisassmWindow {
 
 impl DisassmWindow {
 
-    pub fn new(cpu: Rc<Cpu>, memory: Rc<dyn Memory>) -> Self {
-        Self { cpu, memory, addr: 0, rows: 24, cursor: 0 }
+    pub fn new(cpu: &Rc<Cpu>, memory: &Rc<dyn Memory>) -> Self {
+        Self {
+            cpu: Rc::clone(cpu),
+            memory: Rc::clone(memory),
+            addr: 0,
+            rows: 24,
+            cursor: 0
+        }
     }
 
     fn prev_instr(&self) -> u16 {

@@ -22,8 +22,14 @@ pub struct MemoryWindow {
 
 impl MemoryWindow {
 
-    pub fn new(memory: Rc<dyn Memory>) -> Self {
-        Self { memory, cols: 8, rows: 24, addr: 0, cursor: Cursor::Address(0) }
+    pub fn new(memory: &Rc<dyn Memory>) -> Self {
+        Self {
+            memory: Rc::clone(memory),
+            cols: 8,
+            rows: 24,
+            addr: 0,
+            cursor: Cursor::Address(0)
+        }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {

@@ -68,7 +68,7 @@ fn main() {
     let bus: Rc<CpuBus> = Default::default();
     let clock: Rc<Clock> = Default::default();
 
-    let device_manager = Rc::new(DeviceManager::new(Rc::clone(&bus), Rc::clone(&clock)));
+    let device_manager = Rc::new(DeviceManager::new(&bus, &clock));
     let cpu = device_manager.create_cpu();
     let mem: Rc<dyn Memory> = {
         let mem = device_manager.create_48k_memory();
@@ -80,16 +80,16 @@ fn main() {
     let logger = device_manager.create_bus_logger();
 
     let scheduler =  Rc::new(RefCell::new(
-        Scheduler::new(Rc::clone(&clock), vec![cpu.run(), mem.run(), logger.run()])
+        Scheduler::new(&clock, vec![cpu.run(), mem.run(), logger.run()])
     ));
 
     let app = Box::new(EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(Rc::clone(&cpu), Rc::clone(&scheduler)))),
-            (true, Box::new(DisassmWindow::new(Rc::clone(&cpu), Rc::clone(&mem)))),
-            (true, Box::new(MemoryWindow::new(Rc::clone(&mem)))),
-            (true, Box::new(BusWindow::new(Rc::clone(&logger), Rc::clone(&device_manager)))),
-            (true, Box::new(DisplayWindow::new(Rc::clone(&mem)))),
+            (true, Box::new(CpuWindow::new(&cpu, &clock, &scheduler))),
+            (true, Box::new(DisassmWindow::new(&cpu, &mem))),
+            (true, Box::new(MemoryWindow::new(&mem))),
+            (true, Box::new(BusWindow::new(&logger, &device_manager))),
+            (true, Box::new(DisplayWindow::new(&mem))),
         ],
         focus: 0,
     });

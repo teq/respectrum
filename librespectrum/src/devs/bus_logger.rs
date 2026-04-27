@@ -30,8 +30,13 @@ pub struct BusLogger {
 }
 
 impl BusLogger {
-    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self { id, bus, clock, readings: RefCell::new(RingBuff::new()) }
+    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+        Self {
+            id,
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
+            readings: RefCell::new(RingBuff::new())
+        }
     }
 }
 

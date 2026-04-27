@@ -11,8 +11,11 @@ pub struct BusWindow {
 }
 
 impl BusWindow {
-    pub fn new(logger: Rc<BusLogger>, device_manager: Rc<DeviceManager>) -> Self {
-        Self { logger, device_manager }
+    pub fn new(logger: &Rc<BusLogger>, device_manager: &Rc<DeviceManager>) -> Self {
+        Self {
+            logger: Rc::clone(logger),
+            device_manager: Rc::clone(device_manager)
+        }
     }
 
     // Helper to display optional boolean signal

@@ -755,8 +755,13 @@ impl Device for Cpu {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
-        Self { id, bus, clock, ..Default::default() }
+    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+        Self {
+            id,
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
+            ..Default::default()
+        }
     }
 
     /// Get reference to register value

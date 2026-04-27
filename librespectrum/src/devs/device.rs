@@ -19,10 +19,10 @@ pub struct DeviceManager {
 impl DeviceManager {
 
     /// Create a new device manager with the given bus and clock
-    pub fn new(bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+    pub fn new(bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
         Self {
-            bus,
-            clock,
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
             next_id: Cell::new(0),
             device_names: RefCell::new(HashMap::new()),
         }
@@ -46,21 +46,21 @@ impl DeviceManager {
 
     /// Create a new CPU instance
     pub fn create_cpu(&self) -> Rc<devs::Cpu> {
-        let cpu = Rc::new(devs::Cpu::new(self.generate_id(), self.bus.clone(), self.clock.clone()));
+        let cpu = Rc::new(devs::Cpu::new(self.generate_id(), &self.bus, &self.clock));
         self.register_name(cpu.id(), "Z80 CPU");
         cpu
     }
 
     /// Create a new 48k memory instance
     pub fn create_48k_memory(&self) -> Rc<devs::mem::Static48k> {
-        let memory = Rc::new(devs::mem::Static48k::new(self.generate_id(), self.bus.clone(), self.clock.clone()));
+        let memory = Rc::new(devs::mem::Static48k::new(self.generate_id(), &self.bus, &self.clock));
         self.register_name(memory.id(), "Static 48K Memory");
         memory
     }
 
     /// Create a new bus logger instance
     pub fn create_bus_logger(&self) -> Rc<devs::BusLogger> {
-        let logger = Rc::new(devs::BusLogger::new(self.generate_id(), self.bus.clone(), self.clock.clone()));
+        let logger = Rc::new(devs::BusLogger::new(self.generate_id(), &self.bus, &self.clock));
         self.register_name(logger.id(), "Bus Logger");
         logger
     }

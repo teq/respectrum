@@ -18,10 +18,11 @@ pub struct Static48k {
 impl Static48k {
 
     /// Create new memory instance
-    pub fn new(id: usize, bus: Rc<CpuBus>, clock: Rc<Clock>) -> Self {
+    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
         Self {
             id,
-            bus, clock,
+            bus: Rc::clone(bus),
+            clock: Rc::clone(clock),
             memory: vec![Default::default(); usize::pow(2, 16)]
         }
     }

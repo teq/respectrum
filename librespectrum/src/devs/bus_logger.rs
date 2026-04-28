@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask, RingBuff},
-    devs::Device,
+    devs::Device, yield_wait,
 };
 
 #[derive(Default, Clone, Copy)]
@@ -69,7 +69,7 @@ impl Device for BusLogger {
 
                 self.readings.borrow_mut().push(state);
 
-                yield 1; // Advance to the next T-cycle edge (rising or falling)
+                yield_wait!(1); // Advance to the next T-cycle edge (rising or falling)
 
             }
 

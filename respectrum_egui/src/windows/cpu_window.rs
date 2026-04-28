@@ -1,5 +1,5 @@
 use egui::*;
-use librespectrum::{cpu::Flags, core::{BreakCondition, Scheduler, Clock}, devs::Cpu};
+use librespectrum::{cpu::Flags, core::{Scheduler, Clock}, devs::Cpu};
 use std::{rc::Rc, cell::RefCell};
 
 use super::{SubWindow, draw_window};
@@ -22,7 +22,7 @@ impl<'a> CpuWindow<'a> {
     fn handle_keyboard(&mut self, input: &InputState) {
         if input.key_pressed(Key::Space) {
             let target_htcycles = self.clock.get() + 1;
-            self.scheduler.borrow_mut().run(BreakCondition::HTCyclesReached(target_htcycles));
+            self.scheduler.borrow_mut().run(1);
         }
     }
 }

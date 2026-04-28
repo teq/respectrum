@@ -16,8 +16,23 @@ macro_rules! spword {
     }
 }
 
-/// Yield results from generator from within another generator.
-/// Analogous to python's `yield from` syntax
+/// Yield a wait for a specified number of htcycles
+#[macro_export]
+macro_rules! yield_wait {
+    ($offset:expr) => {
+        yield $crate::core::TaskYield::Wait($offset as u64)
+    };
+}
+
+/// Yield a task break
+#[macro_export]
+macro_rules! yield_break {
+    () => {
+        yield $crate::core::TaskYield::Break
+    };
+}
+
+/// Yield all values from a sub-generator, analogous to python's `yield from`
 #[macro_export]
 macro_rules! yield_from {
     ($input: expr) => {

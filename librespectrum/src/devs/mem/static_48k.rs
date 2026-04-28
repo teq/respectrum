@@ -3,6 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use crate::{
     core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask},
     devs::Device,
+    yield_wait
 };
 
 use super::Memory;
@@ -88,7 +89,7 @@ impl Device for Static48k {
                     self.bus.data.release(self);
                 }
 
-                yield self.clock.rising(1);
+                yield_wait!(self.clock.rising(1));
 
             }
 

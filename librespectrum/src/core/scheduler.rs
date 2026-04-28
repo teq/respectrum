@@ -2,21 +2,17 @@ use std::{
     ops::{Coroutine, CoroutineState}, pin::Pin, rc::Rc
 };
 
-use crate::{cpu::decoder::Instruction};
+use super::Clock;
 
-use super::{Clock, CpuState};
-
-pub enum BreakCondition {
-    HTCyclesReached(u64),
-    InstructionDecoded(Box<dyn Fn(&Instruction) -> bool>),
-    CpuState(Box<dyn Fn(&CpuState) -> bool>),
-    MemoryRead(u16),
-    MemoryWrite(u16),
+/// Task yield values
+pub enum TaskYield {
+    Wait(u64),
+    Break
 }
 
 /// Task which returns a value when it's completed
 /// or yields next wake up time as an offset in half t-cycles to the current clock
-pub trait Task<T> = Coroutine<(), Yield=usize, Return=T> + Unpin;
+pub trait Task<T> = Coroutine<(), Yield=TaskYield, Return=T> + Unpin;
 
 /// Task which never returns
 pub trait NoReturnTask = Task<!>;
@@ -54,27 +50,33 @@ impl<'a> Scheduler<'a> {
         Self { clock: Rc::clone(clock), tasks, queue }
     }
 
-    /// Run the scheduler until the break condition is met
-    pub fn run(&mut self, condition: BreakCondition) {
+    /// Run the scheduler for given htcycles or until break condition in any task
+    /// Returns the index of the task which triggered break condition, if any
+    pub fn run(&mut self, htcycles: u64) -> Option<usize> {
+        let target_htcycles = self.clock.get() + htcycles;
         loop {
-            if let BreakCondition::HTCyclesReached(break_htcycles) = condition {
-                if let Some(step) = &self.queue && step.htcycles >= break_htcycles {
-                    self.clock.set(break_htcycles);
-                    break;
-                }
+            if self.queue.as_ref().is_none_or(|step| step.htcycles >= target_htcycles) {
+                // No more tasks to execute or next task is scheduled
+                // after target htcycles, so skip to target htcycles and break
+                self.clock.set(target_htcycles);
+                break None;
             }
 
             let TaskSlot { htcycles: task_htcycles, task_idx, next } = *self.queue.take().unwrap();
-
             self.queue = next;
             let task = &mut self.tasks[task_idx];
 
             // Advance to task's htcycles and continue task execution
             self.clock.set(task_htcycles);
-            let CoroutineState::Yielded(offset) = Pin::new(task).resume(());
-
-            // Re-schedule current task with returned htcycles offset
-            self.schedule(task_htcycles + offset as u64, task_idx);
+            match Pin::new(task).resume(()) {
+                CoroutineState::Yielded(TaskYield::Wait(offset)) => {
+                    self.schedule(task_htcycles + offset, task_idx);
+                }
+                CoroutineState::Yielded(TaskYield::Break) => {
+                    self.schedule(task_htcycles, task_idx);
+                    break Some(task_idx);
+                }
+            }
         }
     }
 
@@ -94,6 +96,7 @@ impl<'a> Scheduler<'a> {
 mod tests {
 
     use super::*;
+    use crate::{yield_break, yield_wait};
     use std::cell::RefCell;
 
     struct SharedState {
@@ -106,7 +109,7 @@ mod tests {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(#[coroutine] move || {
                 loop {
-                    yield self.state.clock.rising(3); // skip to 3rd raising edge
+                    yield_wait!(self.state.clock.rising(3)); // skip to 3rd raising edge
                     self.state.seq.borrow_mut().push((self.state.clock.get(), true));
                 }
             })
@@ -118,7 +121,7 @@ mod tests {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(#[coroutine] move || {
                 loop {
-                    yield self.state.clock.falling(1); // skip to 1st falling edge
+                    yield_wait!(self.state.clock.falling(1)); // skip to 1st falling edge
                     self.state.seq.borrow_mut().push((self.state.clock.get(), false));
                 }
             })
@@ -140,19 +143,38 @@ mod tests {
 
         let mut scheduler = Scheduler::new(&clock, vec![foo.run(), bar.run()]);
 
-        scheduler.run(BreakCondition::HTCyclesReached(clock.get() + 10));
+        scheduler.run(10);
         assert_eq!(
             *state.seq.borrow(),
             vec![(1, false), (3, false), (5, false), (6, true), (7, false), (9, false)]
         );
 
         state.seq.borrow_mut().clear();
-        scheduler.run(BreakCondition::HTCyclesReached(clock.get() + 10));
+        scheduler.run(10);
         assert_eq!(
             *state.seq.borrow(),
             vec![(11, false), (12, true), (13, false), (15, false), (17, false), (18, true), (19, false)]
         );
 
+    }
+
+    struct Breaker;
+    impl Breaker {
+        fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
+            Box::new(#[coroutine] move || {
+                loop {
+                    yield_break!();
+                }
+            })
+        }
+    }
+
+    #[test]
+    fn scheduler_breaks_on_task_break() {
+        let clock: Rc<Clock> = Default::default();
+        let breaker = Breaker;
+        let mut scheduler = Scheduler::new(&clock, vec![breaker.run()]);
+        assert_eq!(scheduler.run(10), Some(0));
     }
 
 }

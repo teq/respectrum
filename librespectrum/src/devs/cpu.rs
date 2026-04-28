@@ -3,9 +3,10 @@ use std::{
 };
 
 use crate::{
-    core::{Clock, CpuBus, CpuState, Ctrl, Identifiable, NoReturnTask, Task}, cpu::{
+    core::{Clock, CpuBus, CpuState, Ctrl, Identifiable, NoReturnTask, Task},
+    cpu::{
         Flags, decoder::instruction_decoder, tokens::{AluOp, BlockOp, Condition, IntMode, Reg, RegPair, ShiftOp, Token, TokenType}
-    }, mkword, spword, yield_from
+    }, mkword, spword, yield_break, yield_from, yield_wait
 };
 
 use super::Device;
@@ -109,7 +110,9 @@ impl Device for Cpu {
                         CoroutineState::Yielded(result) => upnext = result.upnext,
                         CoroutineState::Complete(instruction) => break instruction
                     }
-               };
+                };
+
+                yield_break!(); // Break after instruction decode just for test
 
                 // Process instruction
                 match instruction.opcode {
@@ -117,12 +120,12 @@ impl Device for Cpu {
                     // 8-bit Load
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
-                        yield self.clock.rising(2); // complement M3 to 5 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles
                         let addr = self.idx_addr(dst, instruction.displacement.unwrap());
                         yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
-                        yield self.clock.rising(2); // complement M3 to 5 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles
                         let addr = self.idx_addr(src, instruction.displacement.unwrap());
                         self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
@@ -132,14 +135,14 @@ impl Device for Cpu {
                     },
                     Token::LD_RG_RG(dst, Reg::AtHL) => {
                         let addr = self.rp(RegPair::HL).get();
-                        self.rg(dst).set(yield_from!(self.memory_read(addr)))
+                        self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
                     Token::LD_RG_RG(dst @ (Reg::I | Reg::R), Reg::A) => {
-                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         self.rg(dst).set(self.rg(Reg::A).get());
                     },
                     Token::LD_RG_RG(Reg::A, src @ (Reg::I | Reg::R)) => {
-                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         let value = self.rg(src).get();
                         self.rg(Reg::A).set(value);
                         let mut flags = (self.get_flags() & Flags::C) | (Flags::from(value) & Flags::XY);
@@ -192,14 +195,14 @@ impl Device for Cpu {
                         yield_from!(self.memory_write(addr + 1, hi));
                     },
                     Token::LD_SP_RP(rpair) => {
-                        yield self.clock.rising(2); // complement M1 to 6 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M1 to 6 t-cycles
                         self.rp(RegPair::SP).set(self.rp(rpair).get());
                     },
                     Token::POP(rpair) => {
                         self.rp(rpair).set(yield_from!(self.stack_pop()));
                     },
                     Token::PUSH(rpair) => {
-                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         yield_from!(self.stack_push(self.rp(rpair).get()));
                     },
 
@@ -212,12 +215,12 @@ impl Device for Cpu {
                         let addr = self.rp(RegPair::SP).get();
                         let rd_lo = yield_from!(self.memory_read(addr));
                         let rd_hi = yield_from!(self.memory_read(addr + 1));
-                        yield self.clock.rising(1);
+                        yield_wait!(self.clock.rising(1));
                         let (wr_hi, wr_lo) = spword!(self.rp(rpair).get());
                         self.rp(rpair).set(mkword!(rd_hi, rd_lo));
                         yield_from!(self.memory_write(addr + 1, wr_hi));
                         yield_from!(self.memory_write(addr, wr_lo));
-                        yield self.clock.rising(2);
+                        yield_wait!(self.clock.rising(2));
                     },
 
                     // Block transfer, search group
@@ -228,7 +231,7 @@ impl Device for Cpu {
                         let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
                         let val = yield_from!(self.memory_read(src));
                         yield_from!(self.memory_write(dst, val));
-                        yield self.clock.rising(2); // complement MW to 5 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement MW to 5 t-cycles
                         let increment = matches!(op, BlockOp::LDI | BlockOp::LDIR);
                         self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
                         self.rp(RegPair::DE).update(|de| if increment { de.wrapping_add(1) } else { de.wrapping_sub(1) });
@@ -240,7 +243,7 @@ impl Device for Cpu {
                         flags.set(Flags::X, n & (1 << 3) != 0);
                         self.set_flags(flags);
                         if matches!(op, BlockOp::LDIR | BlockOp::LDDR) && flags.contains(Flags::P) { // repeat
-                            yield self.clock.rising(5);
+                            yield_wait!(self.clock.rising(5));
                             pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
                         }
                     },
@@ -250,7 +253,7 @@ impl Device for Cpu {
                         let ctr = self.rp(RegPair::BC).get().wrapping_sub(1);
                         let lhs = self.rg(Reg::A).get();
                         let rhs = yield_from!(self.memory_read(src));
-                        yield self.clock.rising(5);
+                        yield_wait!(self.clock.rising(5));
                         let increment = matches!(op, BlockOp::CPI | BlockOp::CPIR);
                         self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
                         self.rp(RegPair::BC).set(ctr);
@@ -264,7 +267,7 @@ impl Device for Cpu {
                         flags.set(Flags::X, n & (1 << 3) != 0);
                         self.set_flags(flags);
                         if matches!(op, BlockOp::CPIR | BlockOp::CPDR) && flags.contains(Flags::P) { // repeat
-                            yield self.clock.rising(5);
+                            yield_wait!(self.clock.rising(5));
                             pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
                         }
                     },
@@ -275,7 +278,7 @@ impl Device for Cpu {
                         let lhs = self.rg(Reg::A).get();
                         let rhs = if let Some(reg) = maybe_reg {
                             if matches!(reg, Reg::AtIX | Reg::AtIY) {
-                                yield self.clock.rising(5); // index calculation delay
+                                yield_wait!(self.clock.rising(5)); // index calculation delay
                             }
                             yield_from!(self.read_register(reg, instruction.displacement))
                         } else {
@@ -319,8 +322,8 @@ impl Device for Cpu {
 
                     Token::INC_RG(reg) | Token::DEC_RG(reg) => {
                         match reg {
-                            Reg::AtIX | Reg::AtIY => { yield self.clock.rising(6); }, // 5T index calc + 1T MR extension
-                            Reg::AtHL => { yield self.clock.rising(1); }, // 1T MR extension
+                            Reg::AtIX | Reg::AtIY => { yield_wait!(self.clock.rising(6)); }, // 5T index calc + 1T MR extension
+                            Reg::AtHL => { yield_wait!(self.clock.rising(1)); }, // 1T MR extension
                             _ => {}
                         }
                         let value = yield_from!(self.read_register(reg, instruction.displacement));
@@ -412,7 +415,7 @@ impl Device for Cpu {
                     // 16-Bit Arithmetic
 
                     Token::ADD_RP_RP(dst, src) => {
-                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        yield_wait!(self.clock.rising(7)); // Last 2 M-cycles = 4+3 t-cycles
                         let lhs = self.rp(dst).get();
                         let rhs = self.rp(src).get();
                         let (result, carry) = lhs.overflowing_add(rhs);
@@ -423,7 +426,7 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::ADC_HL_RP(rpair) => {
-                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        yield_wait!(self.clock.rising(7)); // Last 2 M-cycles = 4+3 t-cycles
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
                         let mut flags = self.get_flags();
@@ -437,7 +440,7 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::SBC_HL_RP(rpair) => {
-                        yield self.clock.rising(7); // Last 2 M-cycles = 4+3 t-cycles
+                        yield_wait!(self.clock.rising(7)); // Last 2 M-cycles = 4+3 t-cycles
                         let lhs = self.rp(RegPair::HL).get();
                         let rhs = self.rp(rpair).get();
                         let mut flags = self.get_flags();
@@ -451,11 +454,11 @@ impl Device for Cpu {
                         self.set_flags(flags);
                     },
                     Token::INC_RP(rpair) => {
-                        yield self.clock.rising(2); // complement M-cycle to 6 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M-cycle to 6 t-cycles
                         self.rp(rpair).update(|rp| rp.wrapping_add(1));
                     },
                     Token::DEC_RP(rpair) => {
-                        yield self.clock.rising(2); // complement M-cycle to 6 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M-cycle to 6 t-cycles
                         self.rp(rpair).update(|rp| rp.wrapping_sub(1));
                     },
 
@@ -463,11 +466,11 @@ impl Device for Cpu {
 
                     Token::SHOP(op, reg, maybe_dst) => {
                         if matches!(reg, Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
                         if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement MR to 4 t-cycles
                         }
 
                         let mut flags = self.get_flags() & !(Flags::H | Flags::N);
@@ -547,13 +550,13 @@ impl Device for Cpu {
                                 val
                             },
                             ShiftOp::RLD => {
-                                yield self.clock.rising(3); // M4
+                                yield_wait!(self.clock.rising(3)); // M4
                                 let acc = self.rg(Reg::A).get();
                                 self.rg(Reg::A).set((acc & 0xf0) | (val >> 4));
                                 (val << 4) | (acc & 0xf)
                             },
                             ShiftOp::RRD => {
-                                yield self.clock.rising(3); // M4
+                                yield_wait!(self.clock.rising(3)); // M4
                                 let acc = self.rg(Reg::A).get();
                                 self.rg(Reg::A).set((acc & 0xf0) | val & 0xf);
                                 (val >> 4) | (acc << 4)
@@ -583,11 +586,11 @@ impl Device for Cpu {
 
                     Token::BIT(bit, reg) => {
                         if matches!(reg, Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
                         if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement MR to 4 t-cycles
                         }
                         let mut flags = self.get_flags() | Flags::H & !Flags::N;
                         let zero = (val >> bit) & 0x1 == 0;
@@ -597,11 +600,11 @@ impl Device for Cpu {
                     },
                     Token::SET(bit, reg, maybe_dst) | Token::RES(bit, reg, maybe_dst) => {
                         if matches!(reg, Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         }
                         let val = yield_from!(self.read_register(reg, instruction.displacement));
                         if matches!(reg, Reg::AtHL | Reg::AtIX | Reg::AtIY) {
-                            yield self.clock.rising(1); // complement MR to 4 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement MR to 4 t-cycles
                         }
 
                         let result = if let Token::SET(..) = instruction.opcode {
@@ -631,7 +634,7 @@ impl Device for Cpu {
                     },
                     Token::JR(cond) => {
                         if self.get_flags().satisfy(cond) {
-                            yield self.clock.rising(5); // M3 = 5 T-cycles
+                            yield_wait!(self.clock.rising(5)); // M3 = 5 T-cycles
                             let offset = instruction.displacement.unwrap();
                             pc = pc.wrapping_add_signed(offset as i16);
                         }
@@ -639,14 +642,14 @@ impl Device for Cpu {
                     Token::DJNZ => {
                         self.rg(Reg::B).update(|b| b.wrapping_sub(1));
                         if self.rg(Reg::B).get() != 0 {
-                            yield self.clock.rising(5); // M3 = 5 T-cycles
+                            yield_wait!(self.clock.rising(5)); // M3 = 5 T-cycles
                             let offset = instruction.displacement.unwrap();
                             pc = pc.wrapping_add_signed(offset as i16);
                         }
                     },
                     Token::CALL(cond) => {
                         if self.get_flags().satisfy(cond) {
-                            yield self.clock.rising(1); // complement M3 to 4 t-cycles
+                            yield_wait!(self.clock.rising(1)); // complement M3 to 4 t-cycles
                             yield_from!(self.stack_push(pc));
                             pc = instruction.expect_word_data();
                         }
@@ -655,7 +658,7 @@ impl Device for Cpu {
                         pc = yield_from!(self.stack_pop());
                     },
                     Token::RET(cond) => {
-                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         if self.get_flags().satisfy(cond) {
                             pc = yield_from!(self.stack_pop());
                         }
@@ -668,7 +671,7 @@ impl Device for Cpu {
                         pc = yield_from!(self.stack_pop());
                     },
                     Token::RST(addr) => {
-                        yield self.clock.rising(1); // complement M1 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M1 to 5 t-cycles
                         yield_from!(self.stack_push(pc));
                         pc = addr as u16;
                     },
@@ -703,10 +706,10 @@ impl Device for Cpu {
                         let src = self.rp(RegPair::BC).get();
                         let dst = self.rp(RegPair::HL).get();
                         let ctr = self.rg(Reg::B).get().wrapping_sub(1);
-                        yield self.clock.rising(1); // complement M2 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M2 to 5 t-cycles
                         let val = yield_from!(self.io_read(src));
                         yield_from!(self.memory_write(dst, val));
-                        yield self.clock.rising(1); // complement M4 to 4 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M4 to 4 t-cycles
                         let increment = matches!(op, BlockOp::INI | BlockOp::INIR);
                         self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
                         self.rg(Reg::B).set(ctr);
@@ -714,7 +717,7 @@ impl Device for Cpu {
                         flags.set_zs_flags_u8(ctr);
                         self.set_flags(flags);
                         if matches!(op, BlockOp::INIR | BlockOp::INDR) && !flags.contains(Flags::Z) { // repeat
-                            yield self.clock.rising(5);
+                            yield_wait!(self.clock.rising(5));
                             pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
                         }
                     },
@@ -722,10 +725,10 @@ impl Device for Cpu {
                         let src = self.rp(RegPair::HL).get();
                         let dst = self.rp(RegPair::BC).get();
                         let ctr = self.rg(Reg::B).get().wrapping_sub(1);
-                        yield self.clock.rising(1); // complement M2 to 5 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M2 to 5 t-cycles
                         let val = yield_from!(self.memory_read(src));
                         yield_from!(self.io_write(dst, val));
-                        yield self.clock.rising(1); // complement M4 to 4 t-cycles
+                        yield_wait!(self.clock.rising(1)); // complement M4 to 4 t-cycles
                         let increment = matches!(op, BlockOp::OUTI | BlockOp::OTIR);
                         self.rp(RegPair::HL).update(|hl| if increment { hl.wrapping_add(1) } else { hl.wrapping_sub(1) });
                         self.rg(Reg::B).set(ctr);
@@ -733,7 +736,7 @@ impl Device for Cpu {
                         flags.set_zs_flags_u8(ctr);
                         self.set_flags(flags);
                         if matches!(op, BlockOp::OTIR | BlockOp::OTDR) && !flags.contains(Flags::Z) { // repeat
-                            yield self.clock.rising(5);
+                            yield_wait!(self.clock.rising(5));
                             pc = pc.wrapping_sub(2); // rewind PC 2 bytes back
                         }
                     },
@@ -853,7 +856,7 @@ impl Cpu {
     fn process_wait<'a>(&'a self) -> impl Task<()> + 'a {
         #[coroutine] move || {
             while self.bus.wait.probe().unwrap_or(false) {
-                yield self.clock.falling(1); // wait 1 t-cycle
+                yield_wait!(self.clock.falling(1)); // wait 1 t-cycle
             }
         }
     }
@@ -862,15 +865,15 @@ impl Cpu {
     /// to high impedance state while it's set
     fn process_busrq<'a>(&'a self) -> impl Task<()> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1);
+            yield_wait!(self.clock.rising(1));
             self.bus.data.release(self);
             self.bus.addr.release(self);
             self.bus.ctrl.release(self);
             self.bus.busak.drive(self, true);
             while self.bus.busrq.probe().unwrap_or(false) {
-                yield self.clock.rising(1); // wait 1 t-cycle
+                yield_wait!(self.clock.rising(1)); // wait 1 t-cycle
             }
-            yield self.clock.falling(1);
+            yield_wait!(self.clock.falling(1));
             self.bus.busak.drive(self, false);
         }
     }
@@ -880,16 +883,16 @@ impl Cpu {
     /// and IORQ instead of MREQ & RD.
     fn interrupt_response<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.m1.drive(self, true);
-            yield self.clock.falling(3); // TW1 falling
+            yield_wait!(self.clock.falling(3)); // TW1 falling
             self.bus.ctrl.drive(self, Ctrl::IORQ);
-            yield self.clock.falling(1); // TW2 falling
+            yield_wait!(self.clock.falling(1)); // TW2 falling
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let byte = self.bus.data.expect();
             // Increment R (lower 7 bits)
             let r = self.rg(Reg::R).get();
@@ -897,12 +900,12 @@ impl Cpu {
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears IORQ
             self.bus.m1.drive(self, false);
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
-            yield self.clock.rising(1); // T4 rising
+            yield_wait!(self.clock.rising(1)); // T4 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T4 falling
+            yield_wait!(self.clock.falling(1)); // T4 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ
             if busrq { yield_from!(self.process_busrq()); }
             return byte;
@@ -913,16 +916,16 @@ impl Cpu {
     /// (usually referred to as M1). Takes 4 t-cycles.
     fn opcode_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
             self.bus.m1.drive(self, true);
-            yield self.clock.falling(1); // T1 falling
+            yield_wait!(self.clock.falling(1)); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
-            yield self.clock.falling(1); // T2 falling
+            yield_wait!(self.clock.falling(1)); // T2 falling
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let byte = self.bus.data.expect();
             // Increment R (lower 7 bits)
             let r = self.rg(Reg::R).get();
@@ -930,12 +933,12 @@ impl Cpu {
             self.bus.addr.drive(self, self.rp(RegPair::IR).get());
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ & RD
             self.bus.m1.drive(self, false);
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH | Ctrl::MREQ);
-            yield self.clock.rising(1); // T4 rising
+            yield_wait!(self.clock.rising(1)); // T4 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T4 falling
+            yield_wait!(self.clock.falling(1)); // T4 falling
             self.bus.ctrl.drive(self, Ctrl::RFSH); // clears MREQ
             if busrq { yield_from!(self.process_busrq()); }
             return byte;
@@ -945,18 +948,18 @@ impl Cpu {
     /// Memory read m-cycle. Takes 3 t-cycles.
     fn memory_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            yield self.clock.falling(1); // T1 falling
+            yield_wait!(self.clock.falling(1)); // T1 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::RD);
-            yield self.clock.falling(1); // T2 falling
+            yield_wait!(self.clock.falling(1)); // T2 falling
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
             if busrq { yield_from!(self.process_busrq()); }
@@ -967,20 +970,20 @@ impl Cpu {
     /// Memory write m-cycle. Takes 3 t-cycles.
     fn memory_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            yield self.clock.falling(1); // T1 falling
+            yield_wait!(self.clock.falling(1)); // T1 falling
             self.bus.data.drive(self, val);
             self.bus.ctrl.drive(self, Ctrl::MREQ);
-            yield self.clock.falling(1); // T2 falling
+            yield_wait!(self.clock.falling(1)); // T2 falling
             self.bus.ctrl.drive(self, Ctrl::MREQ | Ctrl::WR);
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
             if busrq { yield_from!(self.process_busrq()); }
         }
@@ -989,18 +992,18 @@ impl Cpu {
     /// IO read m-cycle. Takes 3 t-cycles.
     fn io_read<'a>(&'a self, addr: u16) -> impl Task<u8> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            yield self.clock.rising(1); // T2 rising
+            yield_wait!(self.clock.rising(1)); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::RD);
-            yield self.clock.falling(2); // TW falling
+            yield_wait!(self.clock.falling(2)); // TW falling
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             let byte = self.bus.data.expect();
             self.bus.ctrl.drive(self, Ctrl::NONE);
             if busrq { yield_from!(self.process_busrq()); }
@@ -1011,20 +1014,20 @@ impl Cpu {
     /// IO write m-cycle. Takes 3 t-cycles.
     fn io_write<'a>(&'a self, addr: u16, val: u8) -> impl Task<()> + 'a {
         #[coroutine] move || {
-            yield self.clock.rising(1); // T1 rising
+            yield_wait!(self.clock.rising(1)); // T1 rising
             self.bus.data.release(self);
             self.bus.addr.drive(self, addr);
             self.bus.ctrl.drive(self, Ctrl::NONE);
-            yield self.clock.falling(1); // T1 falling
+            yield_wait!(self.clock.falling(1)); // T1 falling
             self.bus.data.drive(self, val);
-            yield self.clock.rising(1); // T2 rising
+            yield_wait!(self.clock.rising(1)); // T2 rising
             self.bus.ctrl.drive(self, Ctrl::IORQ | Ctrl::WR);
-            yield self.clock.falling(2); // TW falling
+            yield_wait!(self.clock.falling(2)); // TW falling
             yield_from!(self.process_wait());
-            yield self.clock.rising(1); // T3 rising
+            yield_wait!(self.clock.rising(1)); // T3 rising
             let busrq = self.bus.busrq.probe().unwrap_or(false);
             self.probe_interrupts();
-            yield self.clock.falling(1); // T3 falling
+            yield_wait!(self.clock.falling(1)); // T3 falling
             self.bus.ctrl.drive(self, Ctrl::NONE);
             if busrq { yield_from!(self.process_busrq()); }
         }

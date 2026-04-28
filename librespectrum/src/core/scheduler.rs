@@ -64,11 +64,10 @@ impl<'a> Scheduler<'a> {
 
             let TaskSlot { htcycles: task_htcycles, task_idx, next } = *self.queue.take().unwrap();
             self.queue = next;
-            let task = &mut self.tasks[task_idx];
 
             // Advance to task's htcycles and continue task execution
             self.clock.set(task_htcycles);
-            match Pin::new(task).resume(()) {
+            match Pin::new(&mut self.tasks[task_idx]).resume(()) {
                 CoroutineState::Yielded(TaskYield::Wait(offset)) => {
                     self.schedule(task_htcycles + offset, task_idx);
                 }

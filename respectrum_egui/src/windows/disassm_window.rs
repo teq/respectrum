@@ -37,15 +37,15 @@ impl DisassmWindow {
         }
     }
 
-    fn prev_instr(&self) -> u16 {
-        let mut ptr = self.addr.wrapping_sub((LINE_BYTES * 2) as u16);
+    fn prev_instr(&self, addr: u16) -> u16 {
+        let mut ptr = addr.wrapping_sub((LINE_BYTES * 2) as u16);
         let mut disasm = disassembler(ptr, LINE_BYTES);
-        let mut prev = self.addr;
+        let mut prev = addr;
         loop {
             let byte = self.memory.read(ptr);
             ptr = ptr.wrapping_add(1);
             if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
-                if (line.address.wrapping_sub(self.addr) as i16) >= 0 {
+                if (line.address.wrapping_sub(addr) as i16) >= 0 {
                     return prev;
                 }
                 prev = line.address;
@@ -53,18 +53,34 @@ impl DisassmWindow {
         }
     }
 
-    fn next_instr(&self) -> u16 {
-        let mut ptr = self.addr;
+    fn prev_page(&self, addr: u16) -> u16 {
+        let mut prev = addr;
+        for _ in 0..self.rows {
+            prev = self.prev_instr(prev);
+        }
+        prev
+    }
+
+    fn next_instr(&self, addr: u16) -> u16 {
+        let mut ptr = addr;
         let mut disasm = disassembler(ptr, LINE_BYTES);
         loop {
             let byte = self.memory.read(ptr);
             ptr = ptr.wrapping_add(1);
             if let CoroutineState::Yielded(Some(line)) = Pin::new(&mut disasm).resume(byte) {
-                if (line.address.wrapping_sub(self.addr) as i16) > 0 {
+                if (line.address.wrapping_sub(addr) as i16) > 0 {
                     return line.address;
                 }
             }
         }
+    }
+
+    fn next_page(&self, addr: u16) -> u16 {
+        let mut next = addr;
+        for _ in 0..self.rows {
+            next = self.next_instr(next);
+        }
+        next
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {
@@ -75,16 +91,24 @@ impl DisassmWindow {
 
         if input.key_pressed(Key::ArrowUp) {
             self.cursor = if input.modifiers.alt {0} else {
-                if self.cursor == 0 { self.addr = self.prev_instr(); }
+                if self.cursor == 0 { self.addr = self.prev_instr(self.addr); }
                 self.cursor.saturating_sub(1)
             };
         }
 
         if input.key_pressed(Key::ArrowDown) {
             self.cursor = if input.modifiers.alt {self.rows - 1} else {
-                if self.cursor == self.rows - 1 { self.addr = self.next_instr(); }
+                if self.cursor == self.rows - 1 { self.addr = self.next_instr(self.addr); }
                 min(self.rows - 1, self.cursor + 1)
             };
+        }
+
+        if input.key_pressed(Key::PageUp) {
+            self.addr = self.prev_page(self.addr);
+        }
+
+        if input.key_pressed(Key::PageDown) {
+            self.addr = self.next_page(self.addr);
         }
 
     }

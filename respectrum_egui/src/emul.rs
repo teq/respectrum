@@ -85,7 +85,7 @@ fn main() {
 
     let app = Box::new(EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(&cpu, &clock, &scheduler))),
+            (true, Box::new(CpuWindow::new(&cpu, &scheduler))),
             (true, Box::new(DisassmWindow::new(&cpu, &mem))),
             (true, Box::new(MemoryWindow::new(&mem))),
             (true, Box::new(BusWindow::new(&logger, &device_manager))),

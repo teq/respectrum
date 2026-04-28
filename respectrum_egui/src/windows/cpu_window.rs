@@ -6,23 +6,20 @@ use super::{SubWindow, draw_window};
 
 pub struct CpuWindow<'a> {
     cpu: Rc<Cpu>,
-    clock: Rc<Clock>,
     scheduler: Rc<RefCell<Scheduler<'a>>>,
 }
 
 impl<'a> CpuWindow<'a> {
-    pub fn new(cpu: &Rc<Cpu>, clock: &Rc<Clock>, scheduler: &Rc<RefCell<Scheduler<'a>>>) -> Self {
+    pub fn new(cpu: &Rc<Cpu>, scheduler: &Rc<RefCell<Scheduler<'a>>>) -> Self {
         Self {
             cpu: Rc::clone(cpu),
-            clock: Rc::clone(clock),
             scheduler: Rc::clone(scheduler)
         }
     }
 
     fn handle_keyboard(&mut self, input: &InputState) {
         if input.key_pressed(Key::Space) {
-            let target_htcycles = self.clock.get() + 1;
-            self.scheduler.borrow_mut().run(1);
+            self.scheduler.borrow_mut().run(100); // should break on next instruction
         }
     }
 }

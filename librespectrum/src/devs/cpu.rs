@@ -17,7 +17,13 @@ pub struct Cpu {
     id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
-    pub state: CpuState,
+    state: CpuState,
+    pub breakpoint: Cell<Option<CpuBreakpoint>>
+}
+
+pub enum CpuBreakpoint {
+    InstructionDecoded,
+    CpuState(Box<dyn Fn(&CpuState) -> bool>)
 }
 
 impl Deref for Cpu {
@@ -112,7 +118,18 @@ impl Device for Cpu {
                     }
                 };
 
-                yield_break!(); // Break after instruction decode just for test
+                // Check for breakpoint match
+                let breakpoint = self.breakpoint.take();
+                match breakpoint {
+                    Some(CpuBreakpoint::InstructionDecoded) => yield_break!(),
+                    Some(CpuBreakpoint::CpuState(ref condition)) => {
+                        if condition(&self.state) {
+                            yield_break!();
+                        }
+                    },
+                    None => {}
+                }
+                self.breakpoint.set(breakpoint);
 
                 // Process instruction
                 match instruction.opcode {

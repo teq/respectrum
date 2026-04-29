@@ -1,5 +1,5 @@
 use egui::*;
-use librespectrum::{cpu::Flags, core::{Scheduler, Clock}, devs::Cpu};
+use librespectrum::{cpu::Flags, core::Scheduler, devs::Cpu};
 use std::{rc::Rc, cell::RefCell};
 
 use super::{SubWindow, draw_window};

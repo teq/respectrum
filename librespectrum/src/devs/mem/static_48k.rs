@@ -1,19 +1,21 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask},
+    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask, Task},
     devs::Device,
-    yield_wait
+    yield_break, yield_from, yield_wait
 };
 
-use super::Memory;
+use super::{Memory, MemoryBreakpoint};
 
 /// Static 48k memory
+#[derive(Default)]
 pub struct Static48k {
     id: usize,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     memory: Vec<Cell<u8>>,
+    breakpoint: Cell<Option<MemoryBreakpoint>>,
 }
 
 impl Static48k {
@@ -24,7 +26,8 @@ impl Static48k {
             id,
             bus: Rc::clone(bus),
             clock: Rc::clone(clock),
-            memory: vec![Default::default(); usize::pow(2, 16)]
+            memory: vec![Default::default(); usize::pow(2, 16)],
+            ..Default::default()
         }
     }
 
@@ -75,13 +78,20 @@ impl Device for Static48k {
                 // Memory read: drive the bus while MREQ+RD are asserted.
                 if mreq && rd && !wr {
                     let addr = self.bus.addr.expect();
-                    self.bus.data.drive(self, self.read(addr));
+                    let val = self.read(addr);
+                    yield_from!(self.read_breakpoints(addr));
+                    yield_from!(self.access_breakpoints(addr));
+                    self.bus.data.drive(self, val);
                 }
 
                 // Memory write: drive the bus while MREQ+WR are asserted.
                 else if mreq && wr && !rd {
                     self.bus.data.release(self);
-                    self.write(self.bus.addr.expect(), self.bus.data.expect());
+                    let addr = self.bus.addr.expect();
+                    let val = self.bus.data.expect();
+                    self.write(addr, val);
+                    yield_from!(self.write_breakpoints(addr));
+                    yield_from!(self.access_breakpoints(addr));
                 }
 
                 // Any non-memory cycle or ambiguous control state.
@@ -95,6 +105,44 @@ impl Device for Static48k {
 
         })
 
+    }
+
+}
+
+impl Static48k {
+
+    fn access_breakpoints<'a>(&'a self, addr: u16) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            let breakpoint = self.breakpoint.take();
+            match breakpoint {
+                Some(MemoryBreakpoint::Access(break_addr)) if break_addr == addr => yield_break!(),
+                Some(MemoryBreakpoint::AccessRange(start, end)) if (start..=end).contains(&addr) => yield_break!(),
+                _ => {}
+            }
+            self.breakpoint.set(breakpoint);
+        }
+    }
+
+    fn write_breakpoints<'a>(&'a self, addr: u16) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            let breakpoint = self.breakpoint.take();
+            match breakpoint {
+                Some(MemoryBreakpoint::Write(break_addr)) if break_addr == addr => yield_break!(),
+                _ => {}
+            }
+            self.breakpoint.set(breakpoint);
+        }
+    }
+
+    fn read_breakpoints<'a>(&'a self, addr: u16) -> impl Task<()> + 'a {
+        #[coroutine] move || {
+            let breakpoint = self.breakpoint.take();
+            match breakpoint {
+                Some(MemoryBreakpoint::Read(break_addr)) if break_addr == addr => yield_break!(),
+                _ => {}
+            }
+            self.breakpoint.set(breakpoint);
+        }
     }
 
 }

@@ -1,10 +1,10 @@
-#![feature(coroutines, coroutine_trait)]
+#![feature(coroutine_trait)]
 
 extern crate librespectrum;
 
 use librespectrum::{
-    core::{CpuBus, Clock, Scheduler},
-    devs::{mem::Memory, Device, DeviceManager}
+    core::{Clock, CpuBus, Scheduler},
+    devs::{CpuBreakpoint, Device, DeviceManager, mem::Memory}
 };
 
 use std::{
@@ -70,6 +70,7 @@ fn main() {
 
     let device_manager = Rc::new(DeviceManager::new(&bus, &clock));
     let cpu = device_manager.create_cpu();
+    cpu.breakpoint.set(Some(CpuBreakpoint::InstructionDecoded));
     let mem: Rc<dyn Memory> = {
         let mem = device_manager.create_48k_memory();
         let mut buffer: Vec<u8> = Vec::new();

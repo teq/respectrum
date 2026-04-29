@@ -51,15 +51,15 @@ impl<'a> Scheduler<'a> {
     }
 
     /// Run the scheduler for given htcycles or until break condition in any task
-    /// Returns the index of the task which triggered break condition, if any
-    pub fn run(&mut self, htcycles: u64) -> Option<usize> {
+    /// Returns true if the scheduler ran until the target htcycles, false if a task triggered a break condition
+    pub fn run(&mut self, htcycles: u64) -> bool {
         let target_htcycles = self.clock.get() + htcycles;
         loop {
             if self.queue.as_ref().is_none_or(|step| step.htcycles >= target_htcycles) {
                 // No more tasks to execute or next task is scheduled
                 // after target htcycles, so skip to target htcycles and break
                 self.clock.set(target_htcycles);
-                break None;
+                break true;
             }
 
             let TaskSlot { htcycles: task_htcycles, task_idx, next } = *self.queue.take().unwrap();
@@ -73,7 +73,7 @@ impl<'a> Scheduler<'a> {
                 }
                 CoroutineState::Yielded(TaskYield::Break) => {
                     self.schedule(task_htcycles, task_idx);
-                    break Some(task_idx);
+                    break false;
                 }
             }
         }
@@ -173,7 +173,7 @@ mod tests {
         let clock: Rc<Clock> = Default::default();
         let breaker = Breaker;
         let mut scheduler = Scheduler::new(&clock, vec![breaker.run()]);
-        assert_eq!(scheduler.run(10), Some(0));
+        assert_eq!(scheduler.run(10), false);
     }
 
 }

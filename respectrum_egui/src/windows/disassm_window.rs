@@ -81,10 +81,18 @@ impl<'a> DisassmWindow<'a> {
         next
     }
 
+    fn follow_pc(&mut self) {
+        let pc = self.cpu.pc.value().get();
+        if pc < self.addr || pc >= self.next_page(self.addr) {
+            self.addr = pc;
+        }
+    }
+
     fn handle_keyboard(&mut self, input: &InputState) {
 
         if input.key_pressed(Key::Enter) {
-            self.addr = self.cpu.pc.value().get();
+            // Set breakpoint on current instruction and run until it's hit
+            todo!();
         }
 
         if input.key_pressed(Key::Space) {
@@ -92,8 +100,8 @@ impl<'a> DisassmWindow<'a> {
             self.cpu.breakpoint.set(Some(CpuBreakpoint::InstructionDecoded));
             while self.scheduler.borrow_mut().run(100) {}
             self.cpu.breakpoint.set(None);
+            self.follow_pc();
         }
-
 
         if input.key_pressed(Key::ArrowUp) {
             self.cursor = if input.modifiers.alt {0} else {

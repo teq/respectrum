@@ -137,12 +137,12 @@ impl Device for Cpu {
                     // 8-bit Load
 
                     Token::LD_RG_RG(dst @ (Reg::AtIX | Reg::AtIY), src) => {
-                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles for index calculation
                         let addr = self.idx_addr(dst, instruction.displacement.unwrap());
                         yield_from!(self.memory_write(addr, self.rg(src).get()));
                     },
                     Token::LD_RG_RG(dst, src @ (Reg::AtIX | Reg::AtIY)) => {
-                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles
+                        yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles for index calculation
                         let addr = self.idx_addr(src, instruction.displacement.unwrap());
                         self.rg(dst).set(yield_from!(self.memory_read(addr)));
                     },
@@ -170,12 +170,11 @@ impl Device for Cpu {
                     Token::LD_RG_RG(dst, src) => {
                         self.rg(dst).set(self.rg(src).get());
                     },
-                    Token::LD_RG_N(Reg::AtHL) => {
-                        let addr = self.rp(RegPair::HL).get();
-                        yield_from!(self.memory_write(addr, instruction.expect_byte_data()));
-                    },
                     Token::LD_RG_N(reg) => {
-                        self.rg(reg).set(instruction.expect_byte_data());
+                        if matches!(reg, Reg::AtIX | Reg::AtIY) {
+                            yield_wait!(self.clock.rising(2)); // complement M3 to 5 t-cycles for index calculation
+                        }
+                        yield_from!(self.write_register(reg, instruction.expect_byte_data(), instruction.displacement));
                     },
                     Token::LD_A_AtRP(rpair) => {
                         let addr = self.rp(rpair).get();
@@ -1088,8 +1087,8 @@ impl Cpu {
         #[coroutine] move || {
             let addr = self.rp(RegPair::SP).get();
             let lo = yield_from!(self.memory_read(addr));
-            let hi = yield_from!(self.memory_read(addr + 1));
-            self.rp(RegPair::SP).set(addr + 2);
+            let hi = yield_from!(self.memory_read(addr.wrapping_add(1)));
+            self.rp(RegPair::SP).set(addr.wrapping_add(2));
             return mkword!(hi, lo);
         }
     }
@@ -1098,9 +1097,9 @@ impl Cpu {
         #[coroutine] move || {
             let addr = self.rp(RegPair::SP).get();
             let (hi, lo) = spword!(value);
-            yield_from!(self.memory_write(addr - 1, hi));
-            yield_from!(self.memory_write(addr - 2, lo));
-            self.rp(RegPair::SP).set(addr - 2);
+            yield_from!(self.memory_write(addr.wrapping_sub(1), hi));
+            yield_from!(self.memory_write(addr.wrapping_sub(2), lo));
+            self.rp(RegPair::SP).set(addr.wrapping_sub(2));
         }
     }
 }

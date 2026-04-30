@@ -4,7 +4,7 @@ extern crate librespectrum;
 
 use librespectrum::{
     core::{Clock, CpuBus, Scheduler},
-    devs::{CpuBreakpoint, Device, DeviceManager, mem::Memory}
+    devs::{Device, DeviceManager, mem::Memory}
 };
 
 use std::{
@@ -70,7 +70,6 @@ fn main() {
 
     let device_manager = Rc::new(DeviceManager::new(&bus, &clock));
     let cpu = device_manager.create_cpu();
-    cpu.breakpoint.set(Some(CpuBreakpoint::InstructionDecoded));
     let mem: Rc<dyn Memory> = {
         let mem = device_manager.create_48k_memory();
         let mut buffer: Vec<u8> = Vec::new();
@@ -86,11 +85,11 @@ fn main() {
 
     let app = Box::new(EmulApp {
         windows: vec![
-            (true, Box::new(CpuWindow::new(&cpu, &scheduler))),
-            (true, Box::new(DisassmWindow::new(&cpu, &mem))),
+            (true, Box::new(CpuWindow::new(&cpu))),
+            (true, Box::new(DisassmWindow::new(&scheduler, &cpu, &mem))),
             (true, Box::new(MemoryWindow::new(&mem))),
             (true, Box::new(BusWindow::new(&logger, &device_manager))),
-            (true, Box::new(DisplayWindow::new(&mem))),
+            (false, Box::new(DisplayWindow::new(&mem))),
         ],
         focus: 0,
     });
@@ -102,7 +101,10 @@ fn main() {
 #[allow(unsafe_code)]
 fn run_native<'a>(app: Box<dyn eframe::App + 'a>) -> ! {
 
-    let native_options = eframe::NativeOptions { ..Default::default() };
+    let native_options = eframe::NativeOptions {
+        maximized: true,
+        ..Default::default()
+    };
 
     let static_app = unsafe {
         std::mem::transmute::<Box<dyn eframe::App + 'a>, Box<dyn eframe::App + 'static>>(app)

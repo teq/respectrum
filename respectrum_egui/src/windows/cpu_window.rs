@@ -1,26 +1,16 @@
 use egui::*;
-use librespectrum::{cpu::Flags, core::Scheduler, devs::Cpu};
-use std::{rc::Rc, cell::RefCell};
+use librespectrum::{cpu::Flags, devs::Cpu};
+use std::rc::Rc;
 
 use super::{SubWindow, draw_window};
 
-pub struct CpuWindow<'a> {
-    cpu: Rc<Cpu>,
-    scheduler: Rc<RefCell<Scheduler<'a>>>,
+pub struct CpuWindow {
+    cpu: Rc<Cpu>
 }
 
-impl<'a> CpuWindow<'a> {
-    pub fn new(cpu: &Rc<Cpu>, scheduler: &Rc<RefCell<Scheduler<'a>>>) -> Self {
-        Self {
-            cpu: Rc::clone(cpu),
-            scheduler: Rc::clone(scheduler)
-        }
-    }
-
-    fn handle_keyboard(&mut self, input: &InputState) {
-        if input.key_pressed(Key::Space) {
-            self.scheduler.borrow_mut().run(100); // should break on next instruction
-        }
+impl CpuWindow {
+    pub fn new(cpu: &Rc<Cpu>) -> Self {
+        Self { cpu: Rc::clone(cpu) }
     }
 }
 
@@ -34,15 +24,13 @@ fn flag_label(ui: &mut Ui, label: &str, is_set: bool) {
     ui.colored_label(color, label);
 }
 
-impl SubWindow for CpuWindow<'_> {
+impl SubWindow for CpuWindow {
 
     fn name(&self) -> String { String::from("CPU") }
 
     fn show(&mut self, ctx: &Context, focused: bool) -> Response {
 
         draw_window(self.name(), focused, ctx, |ui| {
-
-            self.handle_keyboard(&ui.input());
 
             Grid::new("cpu_regs").min_col_width(20.0).show(ui, |ui| {
 

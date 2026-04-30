@@ -1,15 +1,11 @@
 use std::{
-    cmp::min,
-    rc::Rc,
-    pin::Pin,
-    ops::{Coroutine, CoroutineState},
+    cell::RefCell, cmp::min, ops::{Coroutine, CoroutineState}, pin::Pin, rc::Rc
 };
 
 use egui::*;
 
 use librespectrum::{
-    devs::{mem::Memory, Cpu},
-    cpu::decoder::disassembler
+    core::Scheduler, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, mem::Memory}
 };
 
 use super::{SubWindow, draw_window, cursor_color};
@@ -17,7 +13,8 @@ use super::{SubWindow, draw_window, cursor_color};
 /// Maximum bytes to process for each disassembled line
 const LINE_BYTES: usize = 4;
 
-pub struct DisassmWindow {
+pub struct DisassmWindow<'a> {
+    scheduler: Rc<RefCell<Scheduler<'a>>>,
     cpu: Rc<Cpu>,
     memory: Rc<dyn Memory>,
     addr: u16,
@@ -25,10 +22,11 @@ pub struct DisassmWindow {
     cursor: usize,
 }
 
-impl DisassmWindow {
+impl<'a> DisassmWindow<'a> {
 
-    pub fn new(cpu: &Rc<Cpu>, memory: &Rc<dyn Memory>) -> Self {
+    pub fn new(scheduler: &Rc<RefCell<Scheduler<'a>>>, cpu: &Rc<Cpu>, memory: &Rc<dyn Memory>) -> Self {
         Self {
+            scheduler: Rc::clone(scheduler),
             cpu: Rc::clone(cpu),
             memory: Rc::clone(memory),
             addr: 0,
@@ -89,6 +87,14 @@ impl DisassmWindow {
             self.addr = self.cpu.pc.value().get();
         }
 
+        if input.key_pressed(Key::Space) {
+            // Advance to next CPU instruction
+            self.cpu.breakpoint.set(Some(CpuBreakpoint::InstructionDecoded));
+            while self.scheduler.borrow_mut().run(100) {}
+            self.cpu.breakpoint.set(None);
+        }
+
+
         if input.key_pressed(Key::ArrowUp) {
             self.cursor = if input.modifiers.alt {0} else {
                 if self.cursor == 0 { self.addr = self.prev_instr(self.addr); }
@@ -115,7 +121,7 @@ impl DisassmWindow {
 
 }
 
-impl SubWindow for DisassmWindow {
+impl<'a> SubWindow for DisassmWindow<'a> {
 
     fn name(&self) -> String { String::from("Disassembler") }
 

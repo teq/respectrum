@@ -5,7 +5,7 @@ use std::{
 use egui::*;
 
 use librespectrum::{
-    core::Scheduler, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, mem::Memory}
+    core::{CpuState, Scheduler}, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, mem::Memory}
 };
 
 use super::{SubWindow, draw_window, cursor_color};
@@ -51,14 +51,6 @@ impl<'a> DisassmWindow<'a> {
         }
     }
 
-    fn prev_page(&self, addr: u16) -> u16 {
-        let mut prev = addr;
-        for _ in 0..self.rows {
-            prev = self.prev_instr(prev);
-        }
-        prev
-    }
-
     fn next_instr(&self, addr: u16) -> u16 {
         let mut ptr = addr;
         let mut disasm = disassembler(ptr, LINE_BYTES);
@@ -73,17 +65,33 @@ impl<'a> DisassmWindow<'a> {
         }
     }
 
-    fn next_page(&self, addr: u16) -> u16 {
-        let mut next = addr;
+    fn prev_page(&self) -> u16 {
+        let mut prev = self.addr;
+        for _ in 0..self.rows {
+            prev = self.prev_instr(prev);
+        }
+        prev
+    }
+
+    fn next_page(&self) -> u16 {
+        let mut next = self.addr;
         for _ in 0..self.rows {
             next = self.next_instr(next);
         }
         next
     }
 
+    fn cursor_addr(&self) -> u16 {
+        let mut addr = self.addr;
+        for _ in 0..self.cursor {
+            addr = self.next_instr(addr);
+        }
+        addr
+    }
+
     fn follow_pc(&mut self) {
         let pc = self.cpu.pc.value().get();
-        if pc < self.addr || pc >= self.next_page(self.addr) {
+        if pc < self.addr || pc >= self.next_page() {
             self.addr = pc;
         }
     }
@@ -92,14 +100,18 @@ impl<'a> DisassmWindow<'a> {
 
         if input.key_pressed(Key::Enter) {
             // Set breakpoint on current instruction and run until it's hit
-            todo!();
+            let target_addr = self.cursor_addr();
+            let condition = Box::new(move |state: &CpuState| {
+                state.pc.value().get() == target_addr
+            });
+            self.cpu.breakpoint.set(Some(CpuBreakpoint::BeforeOpcodeRead(Some(condition))));
+            while self.scheduler.borrow_mut().run(100) {}
         }
 
         if input.key_pressed(Key::Space) {
             // Advance to next CPU instruction
-            self.cpu.breakpoint.set(Some(CpuBreakpoint::InstructionDecoded));
+            self.cpu.breakpoint.set(Some(CpuBreakpoint::BeforeOpcodeRead(None)));
             while self.scheduler.borrow_mut().run(100) {}
-            self.cpu.breakpoint.set(None);
             self.follow_pc();
         }
 
@@ -118,11 +130,11 @@ impl<'a> DisassmWindow<'a> {
         }
 
         if input.key_pressed(Key::PageUp) {
-            self.addr = self.prev_page(self.addr);
+            self.addr = self.prev_page();
         }
 
         if input.key_pressed(Key::PageDown) {
-            self.addr = self.next_page(self.addr);
+            self.addr = self.next_page();
         }
 
     }
@@ -159,7 +171,7 @@ impl<'a> SubWindow for DisassmWindow<'a> {
                     };
 
                     let line_color = if line.address <= pc && pc < line.address + line.bytes.len() as u16 {
-                        Color32::BLUE
+                        Color32::RED
                     } else {
                         Color32::BLACK
                     };

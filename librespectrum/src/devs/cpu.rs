@@ -22,8 +22,7 @@ pub struct Cpu {
 }
 
 pub enum CpuBreakpoint {
-    InstructionDecoded,
-    CpuState(Box<dyn Fn(&CpuState) -> bool>)
+    BeforeOpcodeRead(Option<Box<dyn Fn(&CpuState) -> bool>>),
 }
 
 impl Deref for Cpu {
@@ -55,6 +54,15 @@ impl Device for Cpu {
             'fetch: loop {
 
                 self.rp(RegPair::PC).set(pc);
+
+                // Check for BeforeOpcodeRead breakpoint match
+                let breakpoint = self.breakpoint.take();
+                if let Some(CpuBreakpoint::BeforeOpcodeRead(ref maybe_condition)) = breakpoint
+                    && maybe_condition.as_ref().is_none_or(|condition| condition(&self.state)) {
+                    yield_break!();
+                } else {
+                    self.breakpoint.set(breakpoint);
+                }
 
                 let mut decoder = instruction_decoder();
                 let mut upnext = TokenType::Opcode;
@@ -117,19 +125,6 @@ impl Device for Cpu {
                         CoroutineState::Complete(instruction) => break instruction
                     }
                 };
-
-                // Check for breakpoint match
-                let breakpoint = self.breakpoint.take();
-                match breakpoint {
-                    Some(CpuBreakpoint::InstructionDecoded) => yield_break!(),
-                    Some(CpuBreakpoint::CpuState(ref condition)) => {
-                        if condition(&self.state) {
-                            yield_break!();
-                        }
-                    },
-                    None => {}
-                }
-                self.breakpoint.set(breakpoint);
 
                 // Process instruction
                 match instruction.opcode {

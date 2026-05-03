@@ -104,13 +104,13 @@ impl<'a> DisassmWindow<'a> {
             let condition = Box::new(move |state: &CpuState| {
                 state.pc.value().get() == target_addr
             });
-            self.cpu.breakpoint.set(Some(CpuBreakpoint::BeforeOpcodeRead(Some(condition))));
+            self.cpu.breakpoints.borrow_mut().push(CpuBreakpoint::BeforeOpcodeRead { once: true, condition: Some(condition) });
             while self.scheduler.borrow_mut().run(100) {}
         }
 
         if input.key_pressed(Key::Space) {
             // Advance to next CPU instruction
-            self.cpu.breakpoint.set(Some(CpuBreakpoint::BeforeOpcodeRead(None)));
+            self.cpu.breakpoints.borrow_mut().push(CpuBreakpoint::BeforeOpcodeRead { once: true, condition: None });
             while self.scheduler.borrow_mut().run(100) {}
             self.follow_pc();
         }

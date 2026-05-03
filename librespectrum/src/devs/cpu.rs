@@ -1,5 +1,5 @@
 use std::{
-    cell::Cell, ops::{Coroutine, CoroutineState, Deref}, pin::Pin, rc::Rc
+    cell::{Cell, RefCell}, ops::{Coroutine, CoroutineState, Deref}, pin::Pin, rc::Rc
 };
 
 use crate::{
@@ -18,11 +18,11 @@ pub struct Cpu {
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     state: CpuState,
-    pub breakpoint: Cell<Option<CpuBreakpoint>>
+    pub breakpoints: RefCell<Vec<CpuBreakpoint>>
 }
 
 pub enum CpuBreakpoint {
-    BeforeOpcodeRead(Option<Box<dyn Fn(&CpuState) -> bool>>),
+    BeforeOpcodeRead { once: bool, condition: Option<Box<dyn Fn(&CpuState) -> bool>> },
 }
 
 impl Deref for Cpu {
@@ -56,12 +56,15 @@ impl Device for Cpu {
                 self.rp(RegPair::PC).set(pc);
 
                 // Check for BeforeOpcodeRead breakpoint match
-                let breakpoint = self.breakpoint.take();
-                if let Some(CpuBreakpoint::BeforeOpcodeRead(ref maybe_condition)) = breakpoint
-                    && maybe_condition.as_ref().is_none_or(|condition| condition(&self.state)) {
+                let maybe_idx = self.breakpoints.borrow().iter().rposition(|bp| {
+                    let CpuBreakpoint::BeforeOpcodeRead { condition, .. } = bp;
+                    condition.as_ref().is_none_or(|cond| cond(&self.state))
+                });
+                if let Some(idx) = maybe_idx {
+                    if matches!(self.breakpoints.borrow()[idx], CpuBreakpoint::BeforeOpcodeRead { once: true, .. }) {
+                        self.breakpoints.borrow_mut().remove(idx);
+                    }
                     yield_break!();
-                } else {
-                    self.breakpoint.set(breakpoint);
                 }
 
                 let mut decoder = instruction_decoder();

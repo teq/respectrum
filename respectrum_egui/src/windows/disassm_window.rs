@@ -5,7 +5,7 @@ use std::{
 use egui::*;
 
 use librespectrum::{
-    core::{CpuState, Scheduler}, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, mem::Memory}
+    core::Scheduler, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, CpuState, mem::Memory}
 };
 
 use super::{SubWindow, draw_window, cursor_color};
@@ -99,7 +99,7 @@ impl<'a> DisassmWindow<'a> {
     fn handle_keyboard(&mut self, input: &InputState) {
 
         if input.key_pressed(Key::Enter) {
-            // Set breakpoint on current instruction and run until it's hit
+            // Advance to instruction at cursor
             let target_addr = self.cursor_addr();
             let condition = Box::new(move |state: &CpuState| {
                 state.pc.value().get() == target_addr
@@ -109,7 +109,7 @@ impl<'a> DisassmWindow<'a> {
         }
 
         if input.key_pressed(Key::Space) {
-            // Advance to next CPU instruction
+            // Advance to next instruction
             self.cpu.breakpoints.borrow_mut().push(CpuBreakpoint::BeforeOpcodeRead { once: true, condition: None });
             while self.scheduler.borrow_mut().run(100) {}
             self.follow_pc();

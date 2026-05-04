@@ -7,11 +7,8 @@ pub use clock::*;
 mod cpu_bus;
 pub use cpu_bus::*;
 
-mod cpu_state;
-pub use cpu_state::*;
-
 mod identifiable;
-pub use identifiable::Identifiable;
+pub use identifiable::*;
 
 pub mod macros;
 

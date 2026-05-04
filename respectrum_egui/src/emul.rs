@@ -88,7 +88,7 @@ fn main() {
             (true, Box::new(CpuWindow::new(&cpu))),
             (true, Box::new(DisassmWindow::new(&scheduler, &cpu, &mem))),
             (true, Box::new(MemoryWindow::new(&mem))),
-            (true, Box::new(BusWindow::new(&logger, &device_manager))),
+            (false, Box::new(BusWindow::new(&logger, &device_manager))),
             (false, Box::new(DisplayWindow::new(&mem))),
         ],
         focus: 0,

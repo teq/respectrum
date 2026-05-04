@@ -1,7 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
 use crate::{
-    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask, Task},
+    core::{Clock, CpuBus, Ctrl, Identifiable, Identifier, NoReturnTask, Task},
     devs::Device,
     yield_break, yield_from, yield_wait
 };
@@ -11,7 +11,7 @@ use super::{Memory, MemoryBreakpoint};
 /// Static 48k memory
 #[derive(Default)]
 pub struct Static48k {
-    id: usize,
+    id: Identifier,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     memory: Vec<Cell<u8>>,
@@ -21,7 +21,7 @@ pub struct Static48k {
 impl Static48k {
 
     /// Create new memory instance
-    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+    pub fn new(id: Identifier, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
         Self {
             id,
             bus: Rc::clone(bus),
@@ -59,7 +59,7 @@ impl Memory for Static48k {
 }
 
 impl Identifiable for Static48k {
-    fn id(&self) -> usize { self.id }
+    fn id(&self) -> Identifier { self.id }
 }
 
 impl Device for Static48k {

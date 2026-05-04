@@ -3,7 +3,7 @@ use std::{
 };
 
 use crate::{
-    core::{Clock, CpuBus, CpuState, Ctrl, Identifiable, NoReturnTask, Task},
+    core::{Clock, CpuBus, Ctrl, Identifiable, Identifier, NoReturnTask, Task, U16Cell},
     cpu::{
         Flags, decoder::instruction_decoder, tokens::{AluOp, BlockOp, Condition, IntMode, Reg, RegPair, ShiftOp, Token, TokenType}
     }, mkword, spword, yield_break, yield_from, yield_wait
@@ -11,10 +11,33 @@ use crate::{
 
 use super::Device;
 
+/// Z80 CPU registers and state
+#[derive(Default)]
+pub struct CpuState {
+    pub af: U16Cell,
+    pub bc: U16Cell,
+    pub de: U16Cell,
+    pub hl: U16Cell,
+    pub alt_af: U16Cell,
+    pub alt_bc: U16Cell,
+    pub alt_de: U16Cell,
+    pub alt_hl: U16Cell,
+    pub ix: U16Cell,
+    pub iy: U16Cell,
+    pub sp: U16Cell,
+    pub pc: U16Cell,
+    pub ir: U16Cell,
+    pub iff1: Cell<bool>,
+    pub iff2: Cell<bool>,
+    pub im: Cell<IntMode>,
+    pub int: Cell<bool>,
+    pub nmi: Cell<bool>,
+}
+
 /// Z80 CPU
 #[derive(Default)]
 pub struct Cpu {
-    id: usize,
+    id: Identifier,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     state: CpuState,
@@ -34,7 +57,7 @@ impl Deref for Cpu {
 }
 
 impl Identifiable for Cpu {
-    fn id(&self) -> usize { self.id }
+    fn id(&self) -> Identifier { self.id }
 }
 
 impl Device for Cpu {
@@ -56,15 +79,17 @@ impl Device for Cpu {
                 self.rp(RegPair::PC).set(pc);
 
                 // Check for BeforeOpcodeRead breakpoint match
-                let maybe_idx = self.breakpoints.borrow().iter().rposition(|bp| {
-                    let CpuBreakpoint::BeforeOpcodeRead { condition, .. } = bp;
-                    condition.as_ref().is_none_or(|cond| cond(&self.state))
-                });
-                if let Some(idx) = maybe_idx {
-                    if matches!(self.breakpoints.borrow()[idx], CpuBreakpoint::BeforeOpcodeRead { once: true, .. }) {
-                        self.breakpoints.borrow_mut().remove(idx);
+                {
+                    let maybe_idx = self.breakpoints.borrow().iter().rposition(|bp| {
+                        let CpuBreakpoint::BeforeOpcodeRead { condition, .. } = bp;
+                        condition.as_ref().is_none_or(|cond| cond(&self.state))
+                    });
+                    if let Some(idx) = maybe_idx {
+                        if matches!(self.breakpoints.borrow()[idx], CpuBreakpoint::BeforeOpcodeRead { once: true, .. }) {
+                            self.breakpoints.borrow_mut().remove(idx);
+                        }
+                        yield_break!();
                     }
-                    yield_break!();
                 }
 
                 let mut decoder = instruction_decoder();
@@ -772,7 +797,7 @@ impl Device for Cpu {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+    pub fn new(id: Identifier, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
         Self {
             id,
             bus: Rc::clone(bus),

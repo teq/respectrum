@@ -20,7 +20,7 @@ fn reg_label(ui: &mut Ui, label: &str, value: u16) {
 }
 
 fn flag_label(ui: &mut Ui, label: &str, is_set: bool) {
-    let color = if is_set { Color32::GREEN } else { Color32::GRAY };
+    let color = if is_set { Color32::RED } else { Color32::GRAY };
     ui.colored_label(color, label);
 }
 

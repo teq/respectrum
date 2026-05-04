@@ -1,36 +1,36 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    core::{Clock, CpuBus, Ctrl, Identifiable, NoReturnTask, RingBuff},
+    core::{Clock, CpuBus, Ctrl, Identifiable, Identifier, NoReturnTask, RingBuff},
     devs::Device, yield_wait,
 };
 
 #[derive(Default, Clone, Copy)]
 pub struct BusState {
     pub htcyc: u64,
-    pub addr: Option<(usize, u16)>,
-    pub data: Option<(usize, u8)>,
-    pub ctrl: Option<(usize, Ctrl)>,
-    pub m1: Option<(usize, bool)>,
-    pub busak: Option<(usize, bool)>,
-    pub halt: Option<(usize, bool)>,
-    pub wait: Option<(usize, bool)>,
-    pub int: Option<(usize, bool)>,
-    pub nmi: Option<(usize, bool)>,
-    pub reset: Option<(usize, bool)>,
-    pub busrq: Option<(usize, bool)>,
+    pub addr: Option<(Identifier, u16)>,
+    pub data: Option<(Identifier, u8)>,
+    pub ctrl: Option<(Identifier, Ctrl)>,
+    pub m1: Option<(Identifier, bool)>,
+    pub busak: Option<(Identifier, bool)>,
+    pub halt: Option<(Identifier, bool)>,
+    pub wait: Option<(Identifier, bool)>,
+    pub int: Option<(Identifier, bool)>,
+    pub nmi: Option<(Identifier, bool)>,
+    pub reset: Option<(Identifier, bool)>,
+    pub busrq: Option<(Identifier, bool)>,
 }
 
 /// CPU bus logger
 pub struct BusLogger {
-    id: usize,
+    id: Identifier,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
     pub readings: RefCell<RingBuff<BusState, 64>>,
 }
 
 impl BusLogger {
-    pub fn new(id: usize, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+    pub fn new(id: Identifier, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
         Self {
             id,
             bus: Rc::clone(bus),
@@ -41,7 +41,7 @@ impl BusLogger {
 }
 
 impl Identifiable for BusLogger {
-    fn id(&self) -> usize { self.id }
+    fn id(&self) -> Identifier { self.id }
 }
 
 impl Device for BusLogger {

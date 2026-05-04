@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use super::Identifiable;
+use super::{Identifiable, Identifier};
 
 /// Signal bus line
 pub struct BusLine<T> {
@@ -9,7 +9,7 @@ pub struct BusLine<T> {
     name: &'static str,
 
     /// Line owner and state
-    state: Cell<Option<(usize, T)>>,
+    state: Cell<Option<(Identifier, T)>>,
 
 }
 
@@ -26,12 +26,12 @@ impl<T: Copy> BusLine<T> {
     }
 
     /// Get line state (owner and value)
-    pub fn state(&self) -> Option<(usize, T)> {
+    pub fn state(&self) -> Option<(Identifier, T)> {
         self.state.get()
     }
 
     /// Get line owner (if any)
-    pub fn owner(&self) -> Option<usize> {
+    pub fn owner(&self) -> Option<Identifier> {
         self.state.get().and_then(|(owner, ..)| Some(owner))
     }
 
@@ -72,11 +72,11 @@ mod tests {
     fn mkline() -> BusLine::<bool> { BusLine::<bool>::new("Test line") }
 
     struct TestDevice {
-        id: usize
+        id: Identifier
     }
 
     impl Identifiable for TestDevice {
-        fn id(&self) -> usize { self.id }
+        fn id(&self) -> Identifier { self.id }
     }
 
     static DEV1: TestDevice = TestDevice { id: 1 };

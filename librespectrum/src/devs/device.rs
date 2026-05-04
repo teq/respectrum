@@ -1,7 +1,7 @@
 use std::{cell::{Cell, RefCell}, collections::HashMap, rc::Rc};
 
 use crate::{
-    core::{Clock, CpuBus, Identifiable, NoReturnTask}, devs
+    core::{Clock, CpuBus, Identifiable, Identifier, NoReturnTask}, devs
 };
 
 pub trait Device: Identifiable {
@@ -12,8 +12,8 @@ pub trait Device: Identifiable {
 pub struct DeviceManager {
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
-    next_id: Cell<usize>,
-    device_names: RefCell<HashMap<usize, &'static str>>,
+    next_id: Cell<Identifier>,
+    device_names: RefCell<HashMap<Identifier, &'static str>>,
 }
 
 impl DeviceManager {
@@ -28,14 +28,14 @@ impl DeviceManager {
         }
     }
 
-    fn generate_id(&self) -> usize {
+    fn generate_id(&self) -> Identifier {
         let id = self.next_id.get();
         self.next_id.set(id + 1);
         id
     }
 
     /// Register a device name for a specific ID
-    fn register_name(&self, id: usize, name: &'static str) {
+    fn register_name(&self, id: Identifier, name: &'static str) {
         self.device_names.borrow_mut().insert(id, name);
     }
 

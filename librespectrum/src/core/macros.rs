@@ -26,9 +26,11 @@ macro_rules! yield_wait {
 
 /// Yield a task break
 #[macro_export]
-macro_rules! yield_break {
-    () => {
-        yield $crate::core::TaskYield::Break
+macro_rules! yield_break_if {
+    ($option:expr) => {
+        if $option.is_some() {
+            yield $crate::core::TaskYield::Break
+        }
     };
 }
 

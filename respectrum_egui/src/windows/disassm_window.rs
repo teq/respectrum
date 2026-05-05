@@ -5,7 +5,7 @@ use std::{
 use egui::*;
 
 use librespectrum::{
-    core::Scheduler, cpu::decoder::disassembler, devs::{Cpu, CpuBreakpoint, CpuState, mem::Memory}
+    core::Scheduler, cpu::decoder::disassembler, devs::{BreakCondition, BreakpointManager, Cpu, mem::Memory}
 };
 
 use super::{SubWindow, draw_window, cursor_color};
@@ -17,6 +17,7 @@ pub struct DisassmWindow<'a> {
     scheduler: Rc<RefCell<Scheduler<'a>>>,
     cpu: Rc<Cpu>,
     memory: Rc<dyn Memory>,
+    breakpoint_manager: Rc<BreakpointManager>,
     addr: u16,
     rows: usize,
     cursor: usize,
@@ -24,11 +25,12 @@ pub struct DisassmWindow<'a> {
 
 impl<'a> DisassmWindow<'a> {
 
-    pub fn new(scheduler: &Rc<RefCell<Scheduler<'a>>>, cpu: &Rc<Cpu>, memory: &Rc<dyn Memory>) -> Self {
+    pub fn new(scheduler: &Rc<RefCell<Scheduler<'a>>>, cpu: &Rc<Cpu>, memory: &Rc<dyn Memory>, breakpoint_manager: &Rc<BreakpointManager>) -> Self {
         Self {
             scheduler: Rc::clone(scheduler),
             cpu: Rc::clone(cpu),
             memory: Rc::clone(memory),
+            breakpoint_manager: Rc::clone(breakpoint_manager),
             addr: 0,
             rows: 24,
             cursor: 0
@@ -100,17 +102,13 @@ impl<'a> DisassmWindow<'a> {
 
         if input.key_pressed(Key::Enter) {
             // Advance to instruction at cursor
-            let target_addr = self.cursor_addr();
-            let condition = Box::new(move |state: &CpuState| {
-                state.pc.value().get() == target_addr
-            });
-            self.cpu.breakpoints.borrow_mut().push(CpuBreakpoint::BeforeOpcodeRead { once: true, condition: Some(condition) });
+            self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(Some(self.cursor_addr())), true);
             while self.scheduler.borrow_mut().run(100) {}
         }
 
         if input.key_pressed(Key::Space) {
             // Advance to next instruction
-            self.cpu.breakpoints.borrow_mut().push(CpuBreakpoint::BeforeOpcodeRead { once: true, condition: None });
+            self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(None), true);
             while self.scheduler.borrow_mut().run(100) {}
             self.follow_pc();
         }

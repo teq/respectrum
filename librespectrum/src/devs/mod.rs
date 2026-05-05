@@ -1,7 +1,7 @@
 pub mod mem;
 
-mod breakpoint;
-pub use breakpoint::*;
+mod breakpoints;
+pub use breakpoints::*;
 
 mod bus_logger;
 pub use bus_logger::*;

@@ -1,12 +1,11 @@
 use std::{
-    cell::{Cell, RefCell}, ops::{Coroutine, CoroutineState, Deref}, pin::Pin, rc::Rc
+    cell::Cell, ops::{Coroutine, CoroutineState, Deref}, pin::Pin, rc::Rc
 };
 
 use crate::{
-    core::{Clock, CpuBus, Ctrl, Identifiable, Identifier, NoReturnTask, Task, U16Cell},
-    cpu::{
+    core::{Clock, CpuBus, Ctrl, Identifiable, Identifier, NoReturnTask, Task, U16Cell}, cpu::{
         Flags, decoder::instruction_decoder, tokens::{AluOp, BlockOp, Condition, IntMode, Reg, RegPair, ShiftOp, Token, TokenType}
-    }, mkword, spword, yield_break, yield_from, yield_wait
+    }, devs::BreakpointManager, mkword, spword, yield_break_if, yield_from, yield_wait
 };
 
 use super::Device;
@@ -40,12 +39,8 @@ pub struct Cpu {
     id: Identifier,
     bus: Rc<CpuBus>,
     clock: Rc<Clock>,
+    breakpoint_manager: Rc<BreakpointManager>,
     state: CpuState,
-    pub breakpoints: RefCell<Vec<CpuBreakpoint>>
-}
-
-pub enum CpuBreakpoint {
-    BeforeOpcodeRead { once: bool, condition: Option<Box<dyn Fn(&CpuState) -> bool>> },
 }
 
 impl Deref for Cpu {
@@ -78,19 +73,7 @@ impl Device for Cpu {
 
                 self.rp(RegPair::PC).set(pc);
 
-                // Check for BeforeOpcodeRead breakpoint match
-                {
-                    let maybe_idx = self.breakpoints.borrow().iter().rposition(|bp| {
-                        let CpuBreakpoint::BeforeOpcodeRead { condition, .. } = bp;
-                        condition.as_ref().is_none_or(|cond| cond(&self.state))
-                    });
-                    if let Some(idx) = maybe_idx {
-                        if matches!(self.breakpoints.borrow()[idx], CpuBreakpoint::BeforeOpcodeRead { once: true, .. }) {
-                            self.breakpoints.borrow_mut().remove(idx);
-                        }
-                        yield_break!();
-                    }
-                }
+                yield_break_if!(self.breakpoint_manager.hits_before_opcode_read(pc));
 
                 let mut decoder = instruction_decoder();
                 let mut upnext = TokenType::Opcode;
@@ -797,11 +780,12 @@ impl Device for Cpu {
 impl Cpu {
 
     // Create new CPU instance
-    pub fn new(id: Identifier, bus: &Rc<CpuBus>, clock: &Rc<Clock>) -> Self {
+    pub fn new(id: Identifier, bus: &Rc<CpuBus>, clock: &Rc<Clock>, breakpoint_manager: &Rc<BreakpointManager>) -> Self {
         Self {
             id,
             bus: Rc::clone(bus),
             clock: Rc::clone(clock),
+            breakpoint_manager: Rc::clone(breakpoint_manager),
             ..Default::default()
         }
     }

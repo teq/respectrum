@@ -12,11 +12,3 @@ pub trait Memory: Device {
     fn read(&self, addr: u16) -> u8;
 
 }
-
-pub enum MemoryBreakpoint {
-    Access(u16), // Break on access to given address
-    AccessRange(u16, u16), // Break on access to given address range (inclusive)
-    Write(u16), // Break on write to given address
-    Read(u16), // Break on read from given address
-}
-

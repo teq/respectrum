@@ -95,7 +95,7 @@ impl<'a> Scheduler<'a> {
 mod tests {
 
     use super::*;
-    use crate::{yield_break, yield_wait};
+    use crate::{yield_break_if, yield_wait};
     use std::cell::RefCell;
 
     struct SharedState {
@@ -162,7 +162,7 @@ mod tests {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(#[coroutine] move || {
                 loop {
-                    yield_break!();
+                    yield_break_if!(Some(()));
                 }
             })
         }

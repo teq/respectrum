@@ -2,12 +2,14 @@ use std::{
     ops::{Coroutine, CoroutineState}, pin::Pin, rc::Rc
 };
 
-use super::Clock;
+use super::{Clock, Identifier};
 
 /// Task yield values
 pub enum TaskYield {
+    /// Suspended task for given htcycles
     Wait(u64),
-    Break
+    /// Signal breakpoint hit and pass its ID
+    Break(Identifier),
 }
 
 /// Task which returns a value when it's completed
@@ -51,15 +53,16 @@ impl<'a> Scheduler<'a> {
     }
 
     /// Run the scheduler for given htcycles or until break condition in any task
-    /// Returns true if the scheduler ran until the target htcycles, false if a task triggered a break condition
-    pub fn run(&mut self, htcycles: u64) -> bool {
+    /// Returns None if the scheduler ran until the target htcycles,
+    /// or breakpoint ID if a task triggered a break condition
+    pub fn run(&mut self, htcycles: u64) -> Option<Identifier> {
         let target_htcycles = self.clock.get() + htcycles;
         loop {
             if self.queue.as_ref().is_none_or(|step| step.htcycles >= target_htcycles) {
                 // No more tasks to execute or next task is scheduled
                 // after target htcycles, so skip to target htcycles and break
                 self.clock.set(target_htcycles);
-                break true;
+                break None;
             }
 
             let TaskSlot { htcycles: task_htcycles, task_idx, next } = *self.queue.take().unwrap();
@@ -71,9 +74,9 @@ impl<'a> Scheduler<'a> {
                 CoroutineState::Yielded(TaskYield::Wait(offset)) => {
                     self.schedule(task_htcycles + offset, task_idx);
                 }
-                CoroutineState::Yielded(TaskYield::Break) => {
+                CoroutineState::Yielded(TaskYield::Break(id)) => {
                     self.schedule(task_htcycles, task_idx);
-                    break false;
+                    break Some(id);
                 }
             }
         }
@@ -162,7 +165,7 @@ mod tests {
         fn run<'a>(&'a self) -> Box<dyn NoReturnTask + 'a> {
             Box::new(#[coroutine] move || {
                 loop {
-                    yield_break_if!(Some(()));
+                    yield_break_if!(Some(Identifier::default()));
                 }
             })
         }
@@ -173,7 +176,7 @@ mod tests {
         let clock: Rc<Clock> = Default::default();
         let breaker = Breaker;
         let mut scheduler = Scheduler::new(&clock, vec![breaker.run()]);
-        assert_eq!(scheduler.run(10), false);
+        assert_eq!(scheduler.run(10), Some(Identifier::default()));
     }
 
 }

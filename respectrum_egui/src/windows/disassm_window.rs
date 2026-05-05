@@ -95,6 +95,7 @@ impl<'a> DisassmWindow<'a> {
         let pc = self.cpu.pc.value().get();
         if pc < self.addr || pc >= self.next_page() {
             self.addr = pc;
+            self.cursor = 0;
         }
     }
 
@@ -102,14 +103,14 @@ impl<'a> DisassmWindow<'a> {
 
         if input.key_pressed(Key::Enter) {
             // Advance to instruction at cursor
-            self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(Some(self.cursor_addr())), true);
-            while self.scheduler.borrow_mut().run(100) {}
+            let id = self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(Some(self.cursor_addr())), true);
+            while self.scheduler.borrow_mut().run(100) != Some(id) {}
         }
 
         if input.key_pressed(Key::Space) {
             // Advance to next instruction
-            self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(None), true);
-            while self.scheduler.borrow_mut().run(100) {}
+            let id = self.breakpoint_manager.add(BreakCondition::BeforeOpcodeRead(None), true);
+            while self.scheduler.borrow_mut().run(100) != Some(id) {}
             self.follow_pc();
         }
 

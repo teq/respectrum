@@ -28,8 +28,8 @@ macro_rules! yield_wait {
 #[macro_export]
 macro_rules! yield_break_if {
     ($option:expr) => {
-        if $option.is_some() {
-            yield $crate::core::TaskYield::Break
+        if let Some(id) = $option {
+            yield $crate::core::TaskYield::Break(id)
         }
     };
 }

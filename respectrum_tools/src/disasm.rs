@@ -1,4 +1,4 @@
-#![feature(coroutines, coroutine_trait)]
+#![feature(coroutine_trait)]
 
 extern crate librespectrum;
 
